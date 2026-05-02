@@ -1,0 +1,36 @@
+import { Router } from 'express';
+import { authRouter } from './auth/routes.js';
+import { userRouter } from './users/routes.js';
+import { noticeRouter } from './notice/routes.js';
+import { feedbackRouter } from './feedback/routes.js';
+import { skillsRouter } from './skills/routes.js';
+import { internshipRouter } from './internships/routes.js';
+import { roomRouter } from './rooms/routes.js';
+import { bookingRouter } from './bookings/routes.js';
+import { grievanceRouter } from './grievances/routes.js';
+import { attendanceRouter } from './attendance/routes.js';
+import { scheduleRouter } from './schedule/routes.js';
+import { departmentRouter } from './departments/routes.js';
+import { notificationRouter } from './notifications/routes.js';
+import { profileRouter } from './profile/routes.js';
+import { calendarRouter } from './calendar/routes.js';
+import { appDataRouter } from './app/routes.js';
+
+export const apiRouter = Router();
+
+apiRouter.use('/auth', authRouter);
+apiRouter.use('/users', userRouter);
+apiRouter.use('/profile', profileRouter);
+apiRouter.use('/notices', noticeRouter);
+apiRouter.use('/feedback', feedbackRouter);
+apiRouter.use('/skills', skillsRouter);
+apiRouter.use('/internships', internshipRouter);
+apiRouter.use('/rooms', roomRouter);
+apiRouter.use('/bookings', bookingRouter);
+apiRouter.use('/grievances', grievanceRouter);
+apiRouter.use('/attendance', attendanceRouter);
+apiRouter.use('/schedule', scheduleRouter);
+apiRouter.use('/departments', departmentRouter);
+apiRouter.use('/notifications', notificationRouter);
+apiRouter.use('/calendar', calendarRouter);
+apiRouter.use('/app', appDataRouter);

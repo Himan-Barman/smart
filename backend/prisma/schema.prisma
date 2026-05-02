@@ -1,0 +1,318 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model RegisteredPerson {
+  id           String   @id
+  name         String
+  email        String   @unique
+  role         String
+  department   String
+  enrollmentNo String?  @unique
+  employeeId   String?  @unique
+  semester     Int?
+  course       String?
+  subjects     String?
+  phone        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User?
+}
+
+model User {
+  id                 String    @id
+  name               String
+  email              String    @unique
+  role               String
+  department         String
+  enrollmentNo       String?   @unique
+  employeeId         String?   @unique
+  semester           Int?
+  course             String?
+  subjects           String?
+  phone              String?
+  passwordHash       String
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  registeredPersonId String?   @unique
+
+  registeredPerson    RegisteredPerson?   @relation(fields: [registeredPersonId], references: [id], onDelete: SetNull)
+  notices             Notice[]            @relation("NoticeAuthor")
+  feedbacks           Feedback[]
+  skills              Skill[]
+  bookings            Booking[]
+  submittedGrievances Grievance[]         @relation("GrievanceSubmitter")
+  startedSessions     AttendanceSession[] @relation("SessionStarter")
+  attendanceMarks     AttendanceRecord[]
+  notifications       Notification[]
+}
+
+model OtpCode {
+  id        String   @id @default(cuid())
+  email     String
+  code      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
+model Notice {
+  id         String   @id @default(cuid())
+  title      String
+  content    String
+  category   String
+  authorName String
+  pinned     Boolean  @default(false)
+  date       DateTime @default(now())
+  authorId   String?
+
+  author User? @relation("NoticeAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  type      String
+  subject   String
+  message   String
+  rating    Int
+  anonymous Boolean  @default(false)
+  date      DateTime @default(now())
+  status    String   @default("PENDING")
+  userId    String?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model Skill {
+  id       String @id @default(cuid())
+  name     String
+  category String
+  level    String
+  userId   String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+}
+
+model Internship {
+  id          String   @id
+  title       String
+  company     String
+  location    String
+  duration    String
+  skills      String
+  stipend     String
+  deadline    DateTime
+  description String
+  type        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Room {
+  id        String   @id
+  name      String
+  type      String
+  capacity  Int
+  floor     Int
+  building  String
+  amenities String
+  available Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookings Booking[]
+}
+
+model Booking {
+  id           String   @id @default(cuid())
+  roomId        String
+  roomName      String
+  bookedByName  String
+  date          DateTime
+  startTime     String
+  endTime       String
+  purpose       String
+  status        String   @default("PENDING")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  bookedById    String?
+
+  room     Room  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  bookedBy User? @relation(fields: [bookedById], references: [id], onDelete: SetNull)
+
+  @@index([roomId, date])
+}
+
+model Grievance {
+  id            String   @id @default(cuid())
+  type          String
+  subject       String
+  description   String
+  priority      String
+  status        String   @default("SUBMITTED")
+  submittedBy   String
+  submitterRole String
+  assignedTo    String
+  date          DateTime @default(now())
+  resolution    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  submitterId   String?
+
+  submitter User? @relation("GrievanceSubmitter", fields: [submitterId], references: [id], onDelete: SetNull)
+}
+
+model AttendanceSession {
+  id          String   @id @default(cuid())
+  courseName  String
+  courseCode  String
+  faculty     String
+  date        DateTime
+  startTime   String
+  duration    Int      @default(0)
+  currentQR   String
+  qrHistory   String
+  isActive    Boolean  @default(true)
+  scheduleId  String?
+  room        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  startedById String?
+
+  startedBy User? @relation("SessionStarter", fields: [startedById], references: [id], onDelete: SetNull)
+  attendees AttendanceRecord[]
+}
+
+model AttendanceRecord {
+  id          String  @id @default(cuid())
+  sessionId   String
+  studentId   String
+  studentName String
+  timestamp   String
+  qrCode      String
+  verified    Boolean @default(true)
+  userId      String?
+
+  session AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, studentId])
+}
+
+model ScheduleSlot {
+  id         String   @id
+  day        String
+  startTime  String
+  endTime    String
+  subject    String
+  courseCode String
+  faculty    String
+  facultyId  String
+  room       String
+  type       String
+  department String
+  semester   Int
+  course     String
+  section    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Department {
+  id             String   @id
+  name           String
+  code           String   @unique
+  course         String
+  totalSemesters Int
+  hod            String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  semesters DepartmentSemester[]
+}
+
+model DepartmentSemester {
+  id           String @id @default(cuid())
+  semester     Int
+  departmentId String
+
+  department Department         @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  subjects   DepartmentSubject[]
+
+  @@unique([departmentId, semester])
+}
+
+model DepartmentSubject {
+  id         String @id @default(cuid())
+  name       String
+  code       String
+  credits    Int
+  type       String
+  semesterId String
+
+  semester DepartmentSemester @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+
+  @@unique([semesterId, code])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  title     String
+  desc      String
+  date      DateTime @default(now())
+  isRead    Boolean  @default(false)
+  type      String   @default("INFO")
+  userId    String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AcademicYear {
+  id        String   @id
+  label     String
+  startDate DateTime
+  endDate   DateTime
+  isCurrent Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  semesters AcademicSemester[]
+}
+
+model AcademicSemester {
+  id        String   @id @default(cuid())
+  semNum    Int
+  yearId    String
+  startDate DateTime
+  endDate   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  year   AcademicYear   @relation(fields: [yearId], references: [id], onDelete: Cascade)
+  events CalendarEvent[]
+
+  @@unique([yearId, semNum])
+}
+
+model CalendarEvent {
+  id          String   @id @default(cuid())
+  semesterId  String
+  title       String
+  description String?
+  startDate   DateTime
+  endDate     DateTime?
+  type        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  semester AcademicSemester @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+}

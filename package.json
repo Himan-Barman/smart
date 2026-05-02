@@ -1,0 +1,22 @@
+{
+  "name": "smart",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -k -n frontend,backend \"npm --prefix frontend run dev\" \"npm --prefix backend run dev\"",
+    "dev:full": "npm run dev",
+    "dev:host": "concurrently -k -n frontend,backend \"npm --prefix frontend run dev:host\" \"npm --prefix backend run dev\"",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "npm --prefix backend run dev",
+    "build": "npm run build:frontend && npm run build:backend",
+    "build:frontend": "npm --prefix frontend run build",
+    "build:backend": "npm --prefix backend run build",
+    "start": "npm --prefix backend run start",
+    "start:server": "node scripts/start-server.mjs",
+    "seed:backend": "npm --prefix backend run db:reset",
+    "prisma:generate": "npm --prefix backend run prisma:generate",
+    "install:all": "npm install && npm --prefix frontend install && npm --prefix backend install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
