@@ -55,21 +55,7 @@ const Header: React.FC = () => {
     void loadNotifications();
   }, []);
 
-  const pageTitle: Record<string, string> = {
-    dashboard: 'Dashboard',
-    notices: 'Notice Board',
-    feedback: 'Feedback System',
-    skills: 'Skill Mapping & Internships',
-    rooms: 'Room / Lab Booking',
-    grievances: 'Grievances & Suggestions',
-    attendance: 'Attendance',
-    admin_upload: 'User Management',
-    schedule: 'Class Schedule',
-    departments: 'Departments',
-    department_detail: 'Department Info',
-    course_detail: 'Course Details',
-    profile: 'User Profile',
-  };
+
 
   const getInitials = (name: string) => {
     const parts = name.split(' ');

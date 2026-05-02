@@ -190,7 +190,6 @@
   .dash__actions { grid-template-columns: repeat(2, 1fr); }
   .dash__grid { grid-template-columns: 1fr; }
 }
-}
 
 /* ===================================================================
    FOXSTOCKS PREMIUM DASHBOARD STYLES

@@ -7,7 +7,7 @@ import {
   Users, BookOpen, TrendingUp, Calendar, Clock, CheckCircle,
   AlertCircle, ArrowUpRight, Upload, Shield,
   UserCheck, Activity,
-  GraduationCap, Star, Radio, WifiOff,
+  Star, Radio, WifiOff,
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
@@ -268,7 +268,7 @@ const miniData1 = [{v:10},{v:12},{v:11},{v:15},{v:14},{v:18}];
 const miniData2 = [{v:15},{v:13},{v:16},{v:12},{v:18},{v:17}];
 
 const StudentDashboard: React.FC = () => {
-  const { setCurrentPage, notices, attendanceSession } = useApp();
+  const { setCurrentPage, notices } = useApp();
   const { currentUser } = useAuth();
   
   const topCards = [
