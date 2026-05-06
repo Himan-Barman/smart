@@ -10,7 +10,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   JWT_SECRET: z.string().min(16),
   JWT_EXPIRES_IN: z.string().default('8h'),
-  CORS_ORIGIN: z.string().default('http://localhost:5173,http://127.0.0.1:5173'),
+  CORS_ORIGIN: z.string().default('*'),
   SERVE_FRONTEND: z.enum(['true', 'false', '1', '0']).default('false').transform((value) => value === 'true' || value === '1'),
   FRONTEND_DIST_PATH: z.string().optional(),
   TRUST_PROXY: z.enum(['true', 'false', '1', '0']).default('false').transform((value) => value === 'true' || value === '1'),
