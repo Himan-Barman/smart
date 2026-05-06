@@ -256,5 +256,15 @@
 @media (max-width: 480px) {
   .dashboard__stats { grid-template-columns: 1fr; }
   .dashboard__quick-actions { grid-template-columns: 1fr; }
-  .feedback-stats, .grievance-stats { grid-template-columns: 1fr 1fr; }
+  .feedback-stats, .grievance-stats { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .dashboard__welcome { padding: 20px 16px; }
+  .dashboard__welcome-content h2 { font-size: 20px; }
+  .notice-card, .feedback-card, .skills-panel, .internships-panel, .room-card, .grievance-stat { padding: 16px; }
+  .skills-tags { flex-direction: column; }
+  .skill-tag { width: 100%; justify-content: center; }
+  .room-card__header { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .booking-card { padding: 14px; gap: 10px; }
+  .dashboard__welcome-stats { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .grv-actions { flex-direction: column; width: 100%; }
+  .grv-actions .btn { width: 100%; justify-content: center; }
 }

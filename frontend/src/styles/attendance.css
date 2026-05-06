@@ -798,4 +798,16 @@
   .feedback-stats { grid-template-columns: 1fr; }
   .dashboard__welcome-stats { gap: 6px; }
   .att-hero__pills { flex-direction: column; align-items: center; }
+  .att-hero { padding: 24px 16px; }
+  .att-classes { padding: 16px; }
+  .att-summary { padding: 16px; }
+  .att-bar { padding: 14px; gap: 8px; }
+  .qr-panel { padding: 16px; }
+  .qr-display__container { padding: 16px; width: 100%; box-sizing: border-box; }
+  .att-mark-panel { padding: 16px; }
+  .sm__types { grid-template-columns: 1fr; }
+  .sm__row--3 { grid-template-columns: 1fr; }
+  .sm__head { padding: 16px; }
+  .sm__body { padding: 16px; }
+  .sched-card { padding: 12px; }
 }

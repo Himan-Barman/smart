@@ -275,4 +275,25 @@
   .dash-fox__row { flex-direction: column; gap: 16px; }
   .dash-fox__col { min-width: 100%; }
   .fox-minicard { min-width: 160px; }
+  .fox-balance-card { flex-direction: column; align-items: flex-start; gap: 16px; padding: 20px; }
+  .fox-bal-btn { align-self: stretch; width: 100%; }
+}
+
+@media (max-width: 480px) {
+  .dash__welcome { padding: 20px 16px; }
+  .dash__welcome h2 { font-size: 20px; }
+  .dash__welcome-metrics { flex-direction: column; align-items: stretch; gap: 12px; }
+  .dash__metric-divider { display: none; }
+  .dash__metric { display: flex; justify-content: space-between; align-items: center; background: var(--surface-2); padding: 12px; border-radius: 12px; }
+  .dash__metric-val { font-size: 20px; }
+  .dash__stats { grid-template-columns: 1fr; }
+  .dash__actions { grid-template-columns: repeat(2, 1fr); }
+  .dash-fox__top-cards { padding-bottom: 8px; }
+  .fox-minicard { min-width: 140px; padding: 14px; }
+  .fox-minicard__val { font-size: 20px; }
+  .fox-panel { padding: 16px; }
+  .fox-panel__head { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .fox-tabs { width: 100%; justify-content: space-between; overflow-x: auto; }
+  .fox-tab { flex: 1; text-align: center; }
+  .dash__welcome::before { display: none; }
 }

@@ -232,5 +232,15 @@
   .cd-sub-table { font-size: 12px; }
   .cd-sub-table th, .cd-sub-table td { padding: 8px 10px; }
   .cd-sem__head { padding: 12px 16px; }
-  .cd-sem__body { padding: 0 16px 14px; }
+  .cd-sem__body { padding: 0 16px 14px; overflow-x: auto; }
+}
+@media (max-width: 480px) {
+  .cd-hero { padding: 16px 14px; }
+  .cd-hero__title { font-size: 18px; }
+  .cd-hero__desc { font-size: 13px; }
+  .cd-hero__stats { grid-template-columns: 1fr; gap: 8px; }
+  .cd-card__head { padding: 14px 16px; }
+  .cd-card__body { padding: 16px; }
+  .cd-sem__left { font-size: 13px; }
+  .cd-sub-table { min-width: 400px; } 
 }

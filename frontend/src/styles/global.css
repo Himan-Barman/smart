@@ -507,7 +507,7 @@ h4, h5, h6 { font-family: var(--font-heading); font-weight: 600; line-height: 1.
 @media (max-width: 768px) {
   :root { --sidebar-width: 280px; }
   .app__main { margin-left: 0; }
-  .sidebar { transform: translateX(-100%); }
+  .sidebar { transform: translateX(-100%); width: var(--sidebar-width); }
   .sidebar.open { transform: translateX(0); }
   .sidebar-overlay.open { display: block; }
   .header__menu-btn { display: flex; align-items: center; justify-content: center; }
@@ -519,4 +519,24 @@ h4, h5, h6 { font-family: var(--font-heading); font-weight: 600; line-height: 1.
   .modal__header { padding: 20px; }
   .modal__form { padding: 20px; }
   .btn { padding: 9px 16px; font-size: 13px; }
+  .page__toolbar { flex-direction: column; align-items: stretch; }
+  .page__search { max-width: 100%; }
+}
+
+@media (max-width: 480px) {
+  :root { --sidebar-width: 100%; }
+  .app__content { padding: 12px; }
+  .header { padding: 0 12px; height: 56px; }
+  .header__title h2 { font-size: 18px; }
+  .header__user-pill { padding: 4px 10px; }
+  .header__user-name { display: none; }
+  .header__user-role-badge { display: none; }
+  .modal { max-height: 95vh; border-radius: var(--radius-lg); margin: 10px; width: calc(100% - 20px); }
+  .modal__header { padding: 16px; }
+  .modal__form { padding: 16px; gap: 16px; }
+  .logout-modal { padding: 24px 16px; }
+  .page__filters { flex-direction: column; }
+  .filter-chip { text-align: center; width: 100%; justify-content: center; }
+  h1 { font-size: 24px; }
+  h2 { font-size: 20px; }
 }

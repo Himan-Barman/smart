@@ -33,7 +33,7 @@ const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const showDemoLogins = import.meta.env.DEV || import.meta.env.VITE_SHOW_DEMO_LOGINS === 'true';
+  const showDemoLogins = import.meta.env.VITE_SHOW_DEMO_LOGINS !== 'false';
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
