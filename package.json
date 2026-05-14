@@ -12,6 +12,7 @@
     "build:backend": "npm --prefix backend run build",
     "start": "npm --prefix backend run start",
     "start:server": "node scripts/start-server.mjs",
+    "deploy:migrate": "npm --prefix backend run prisma:migrate:deploy",
     "seed:backend": "npm --prefix backend run db:reset",
     "prisma:generate": "npm --prefix backend run prisma:generate",
     "install:all": "npm install && npm --prefix frontend install && npm --prefix backend install"

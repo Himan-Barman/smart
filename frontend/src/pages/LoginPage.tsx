@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   GraduationCap, Mail, Lock, Eye, EyeOff, ArrowRight,
-  UserPlus, QrCode, Shield, BarChart3, BookOpen, Briefcase,
+  Shield, Briefcase, Sparkles,
 } from 'lucide-react';
 
 const demoAccounts = [
@@ -49,102 +49,103 @@ const LoginPage: React.FC = () => {
 
   return (
     <div className="auth-page">
+      {/* Ambient glow effects */}
       <div className="auth-page__bg">
-        <div className="auth-bg-orb auth-bg-orb--1" />
-        <div className="auth-bg-orb auth-bg-orb--2" />
+        <div className="auth-bg-glow auth-bg-glow--1" />
+        <div className="auth-bg-glow auth-bg-glow--2" />
+        <div className="auth-bg-glow auth-bg-glow--3" />
       </div>
 
-      <div className="auth-box">
-        {/* Left — Dark brand */}
-        <div className="auth-left">
-          <div className="auth-left__top">
-            <div className="auth-logo">
-              <div className="auth-logo__icon"><GraduationCap size={26} /></div>
-              <span>Smart Campus</span>
-            </div>
-          </div>
-
-          <div className="auth-left__center">
-            <h1>Welcome<br /><span>Back</span></h1>
-            <p>Your university, one login away.</p>
-          </div>
-
-          <div className="auth-left__features">
-            <div className="auth-pill"><QrCode size={14} /> QR Attendance</div>
-            <div className="auth-pill"><Shield size={14} /> Secure</div>
-            <div className="auth-pill"><BarChart3 size={14} /> Analytics</div>
-            <div className="auth-pill"><BookOpen size={14} /> Skills</div>
-          </div>
-
-          <div className="auth-left__bottom">© 2026 Smart Campus</div>
+      <div className="auth-card">
+        {/* Tab Navigation */}
+        <div className="auth-tabs">
+          <button className="auth-tab auth-tab--active">Sign in</button>
+          <button className="auth-tab" onClick={() => setAuthStep('signup')}>Sign up</button>
         </div>
 
-        {/* Right — Form */}
-        <div className="auth-right">
-          <div className="auth-right__inner">
-            <div className="auth-form-head">
-              <h2>Sign In</h2>
+        {/* Card Header */}
+        <div className="auth-card__header">
+          <div className="auth-card__logo">
+            <div className="auth-card__logo-icon">
+              <GraduationCap size={20} />
             </div>
+            <span>Smart Campus</span>
+          </div>
+          <h2>Welcome back</h2>
+          <p>Sign in to continue to your dashboard</p>
+        </div>
 
-            {showDemoLogins && (
-              <div className="auth-demo-grid">
-                {demoAccounts.map(({ role, email: demoEmail, password: demoPassword, Icon }) => (
-                  <button
-                    key={role}
-                    type="button"
-                    className="auth-demo-card"
-                    onClick={() => {
-                      setEmail(demoEmail);
-                      setPassword(demoPassword);
-                    }}
-                  >
-                    <Icon size={15} />
-                    <span>{role}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <form onSubmit={handleLogin} className="auth-form">
-              {error && <div className="auth-err">{error}</div>}
-
-              <div className="auth-input-group">
-                <Mail size={16} className="auth-input-icon" />
-                <input
-                  type="email"
-                  placeholder="Email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  autoComplete="email"
-                />
-              </div>
-
-              <div className="auth-input-group">
-                <Lock size={16} className="auth-input-icon" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                />
-                <button type="button" className="auth-eye" onClick={() => setShowPassword(!showPassword)}>
-                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
-
-              <button type="submit" className="auth-btn" disabled={loading}>
-                {loading ? <span className="auth-spinner" /> : <><ArrowRight size={18} /> Sign In</>}
+        {/* Demo Quick-Fill */}
+        {showDemoLogins && (
+          <div className="auth-demo-strip">
+            {demoAccounts.map(({ role, email: demoEmail, password: demoPassword, Icon }) => (
+              <button
+                key={role}
+                type="button"
+                className="auth-demo-chip"
+                onClick={() => {
+                  setEmail(demoEmail);
+                  setPassword(demoPassword);
+                }}
+              >
+                <Icon size={13} />
+                <span>{role}</span>
               </button>
-            </form>
+            ))}
+          </div>
+        )}
 
-            <div className="auth-footer-link">
-              <span>No account?</span>
-              <button onClick={() => setAuthStep('signup')}>
-                <UserPlus size={14} /> Sign Up
+        {/* Form */}
+        <form onSubmit={handleLogin} className="auth-form">
+          {error && <div className="auth-err">{error}</div>}
+
+          <div className="auth-field">
+            <label>Email</label>
+            <div className="auth-input-wrap">
+              <Mail size={16} className="auth-input-icon" />
+              <input
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                autoComplete="email"
+              />
+            </div>
+          </div>
+
+          <div className="auth-field">
+            <label>Password</label>
+            <div className="auth-input-wrap">
+              <Lock size={16} className="auth-input-icon" />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Enter your password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+              <button type="button" className="auth-eye" onClick={() => setShowPassword(!showPassword)}>
+                {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
               </button>
             </div>
           </div>
+
+          <button type="submit" className="auth-submit" disabled={loading}>
+            {loading ? (
+              <span className="auth-spinner" />
+            ) : (
+              <>
+                Sign In
+                <ArrowRight size={16} />
+              </>
+            )}
+          </button>
+        </form>
+
+        {/* Footer */}
+        <div className="auth-card__footer">
+          <p>No account? <button onClick={() => setAuthStep('signup')}><Sparkles size={12} /> Sign Up</button></p>
+          <span className="auth-card__terms">By signing in, you agree to our <a href="#">Terms & Service</a></span>
         </div>
       </div>
     </div>

@@ -13,7 +13,7 @@ import type {
 } from '../types';
 
 const API_BASE_URL =
-  ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? (import.meta.env.DEV ? '/api/v1' : 'https://smart-5vin.onrender.com/api/v1')).replace(/\/$/, '');
+  ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api/v1').replace(/\/$/, '');
 
 const TOKEN_KEY = 'smart-campus-token';
 
