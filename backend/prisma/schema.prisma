@@ -5,9 +5,9 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  // directUrl is only needed when using Supabase's PgBouncer pooler.
-  // On Render (or any direct PostgreSQL), omit DIRECT_URL and Prisma
-  // will use DATABASE_URL for both queries and migrations.
+  // directUrl bypasses PgBouncer for schema changes (migrations, db push).
+  // Only needed with Supabase pooler. On Render, leave DIRECT_URL unset.
+  directUrl = env("DIRECT_URL")
 }
 
 model RegisteredPerson {

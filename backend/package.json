@@ -12,6 +12,7 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:migrate": "prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > prisma/init.sql",
     "prisma:seed": "prisma db seed",
+    "seed:admin": "tsx scripts/seed-admin.ts",
     "db:reset": "node scripts/reset-db.mjs"
   },
   "prisma": {

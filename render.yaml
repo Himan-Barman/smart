@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     buildCommand: npm run install:all && npm run build
-    startCommand: npm --prefix backend run prisma:migrate:deploy && npm run start:server
+    startCommand: npm --prefix backend run prisma:migrate:deploy && npm --prefix backend run seed:admin && npm run start:server
     envVars:
       - key: NODE_ENV
         value: production
@@ -30,6 +30,8 @@ services:
         value: "4000"
       - key: RESEND_API_KEY
         sync: false
+      - key: EMAIL_FROM
+        value: "Smart Campus <no-reply@smartcampuss.online>"
 
 databases:
   - name: smart-campus-db
