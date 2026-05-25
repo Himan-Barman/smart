@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   GraduationCap, Mail, Lock, Eye, EyeOff, ArrowRight,
-  Shield, Briefcase, Sparkles,
+  Shield, Briefcase, Sparkles, Loader2,
 } from 'lucide-react';
 
 const demoAccounts = [
@@ -33,7 +33,10 @@ const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState<string | null>(null);
   const showDemoLogins = import.meta.env.VITE_SHOW_DEMO_LOGINS !== 'false';
+
+  const isAnyLoading = loading || demoLoading !== null;
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,6 +48,19 @@ const LoginPage: React.FC = () => {
       if (!r.success) setError(r.message);
       setLoading(false);
     }, 600);
+  };
+
+  const handleDemoLogin = async (role: string, demoEmail: string, demoPassword: string) => {
+    if (isAnyLoading) return;
+    setError('');
+    setEmail(demoEmail);
+    setPassword(demoPassword);
+    setDemoLoading(role);
+    // Brief delay for visual feedback of the fill
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const r = await login(demoEmail, demoPassword);
+    if (!r.success) setError(r.message);
+    setDemoLoading(null);
   };
 
   return (
@@ -75,20 +91,23 @@ const LoginPage: React.FC = () => {
           <p>Sign in to continue to your dashboard</p>
         </div>
 
-        {/* Demo Quick-Fill */}
+        {/* Demo Quick-Login */}
         {showDemoLogins && (
           <div className="auth-demo-strip">
+            <span className="auth-demo-strip__label">Quick demo login:</span>
             {demoAccounts.map(({ role, email: demoEmail, password: demoPassword, Icon }) => (
               <button
                 key={role}
                 type="button"
-                className="auth-demo-chip"
-                onClick={() => {
-                  setEmail(demoEmail);
-                  setPassword(demoPassword);
-                }}
+                className={`auth-demo-chip ${demoLoading === role ? 'auth-demo-chip--loading' : ''}`}
+                disabled={isAnyLoading}
+                onClick={() => handleDemoLogin(role, demoEmail, demoPassword)}
               >
-                <Icon size={13} />
+                {demoLoading === role ? (
+                  <Loader2 size={13} className="auth-demo-chip__spinner" />
+                ) : (
+                  <Icon size={13} />
+                )}
                 <span>{role}</span>
               </button>
             ))}
@@ -130,7 +149,7 @@ const LoginPage: React.FC = () => {
             </div>
           </div>
 
-          <button type="submit" className="auth-submit" disabled={loading}>
+          <button type="submit" className="auth-submit" disabled={isAnyLoading}>
             {loading ? (
               <span className="auth-spinner" />
             ) : (

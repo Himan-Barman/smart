@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   GraduationCap, Mail, Hash,
-  User, Briefcase, Send, Sparkles,
+  User, Briefcase, Send, Sparkles, Loader2,
 } from 'lucide-react';
 
 const SignupPage: React.FC = () => {
@@ -12,6 +12,9 @@ const SignupPage: React.FC = () => {
   const [identifier, setIdentifier] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
+
+  const isAnyLoading = loading || demoLoading;
 
   const handleSignup = (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,6 +26,21 @@ const SignupPage: React.FC = () => {
       if (!r.success) setError(r.message);
       setLoading(false);
     }, 600);
+  };
+
+  const handleDemoSignup = async () => {
+    if (isAnyLoading) return;
+    setError('');
+    const demoEmail = role === 'student' ? 'priya@university.edu' : 'meena.i@university.edu';
+    const demoId = role === 'student' ? 'CS2024002' : 'EMP002';
+    setEmail(demoEmail);
+    setIdentifier(demoId);
+    setDemoLoading(true);
+    // Brief delay for visual feedback of the fill
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const r = await startSignup(demoEmail, demoId);
+    if (!r.success) setError(r.message);
+    setDemoLoading(false);
   };
 
   return (
@@ -53,15 +71,6 @@ const SignupPage: React.FC = () => {
           <p>Register with your university credentials</p>
         </div>
 
-        {/* Demo Pre-fill */}
-        <button className="auth-demo-fill" onClick={() => {
-          if (role === 'student') { setEmail('priya@university.edu'); setIdentifier('CS2024002'); }
-          else { setEmail('meena.i@university.edu'); setIdentifier('EMP002'); }
-        }}>
-          <Sparkles size={13} />
-          Fill demo {role} data
-        </button>
-
         {/* Role Toggle */}
         <div className="auth-role-toggle">
           <button className={`auth-role-btn ${role === 'student' ? 'auth-role-btn--active' : ''}`} onClick={() => setRole('student')}>
@@ -71,6 +80,20 @@ const SignupPage: React.FC = () => {
             <Briefcase size={15} /> Faculty
           </button>
         </div>
+
+        {/* Demo Pre-fill & Submit */}
+        <button
+          className={`auth-demo-fill ${demoLoading ? 'auth-demo-fill--loading' : ''}`}
+          disabled={isAnyLoading}
+          onClick={handleDemoSignup}
+        >
+          {demoLoading ? (
+            <Loader2 size={13} className="auth-demo-fill__spinner" />
+          ) : (
+            <Sparkles size={13} />
+          )}
+          {demoLoading ? `Signing up as demo ${role}…` : `Quick demo ${role} signup`}
+        </button>
 
         {/* Form */}
         <form onSubmit={handleSignup} className="auth-form">
@@ -102,7 +125,7 @@ const SignupPage: React.FC = () => {
             </div>
           </div>
 
-          <button type="submit" className="auth-submit" disabled={loading}>
+          <button type="submit" className="auth-submit" disabled={isAnyLoading}>
             {loading ? <span className="auth-spinner" /> : <><Send size={15} /> Verify & Send OTP</>}
           </button>
         </form>

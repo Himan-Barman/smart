@@ -87,14 +87,29 @@
 .auth-card__header p strong { color: var(--text-secondary); }
 
 /* ===== DEMO STRIP ===== */
-.auth-demo-strip { display: flex; gap: 6px; margin-bottom: 14px; }
+.auth-demo-strip {
+  display: flex; gap: 6px; margin-bottom: 14px; align-items: center; flex-wrap: wrap;
+}
+.auth-demo-strip__label {
+  font-size: 10px; font-weight: 600; color: var(--text-muted);
+  letter-spacing: 0.3px; text-transform: uppercase; white-space: nowrap;
+  width: 100%; margin-bottom: -2px;
+}
 .auth-demo-chip {
   flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px;
   padding: 7px 0; border-radius: 9px; border: 1px solid rgba(108,93,211,0.15);
   background: rgba(108,93,211,0.04); color: #6C5DD3; font-family: inherit;
   font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s;
 }
-.auth-demo-chip:hover { background: #6C5DD3; color: #fff; border-color: #6C5DD3; }
+.auth-demo-chip:hover:not(:disabled) { background: #6C5DD3; color: #fff; border-color: #6C5DD3; }
+.auth-demo-chip:disabled { opacity: 0.5; cursor: not-allowed; }
+.auth-demo-chip--loading {
+  background: #6C5DD3; color: #fff; border-color: #6C5DD3;
+  opacity: 1 !important; pointer-events: none;
+}
+.auth-demo-chip__spinner {
+  animation: auth-spin 0.7s linear infinite;
+}
 .auth-demo-fill {
   display: flex; align-items: center; gap: 6px; margin-bottom: 10px; padding: 5px 12px;
   border-radius: 9px; border: 1px dashed rgba(108,93,211,0.2);
@@ -102,7 +117,14 @@
   font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; width: 100%;
   justify-content: center;
 }
-.auth-demo-fill:hover { background: rgba(108,93,211,0.08); border-style: solid; }
+.auth-demo-fill:hover:not(:disabled) { background: rgba(108,93,211,0.08); border-style: solid; }
+.auth-demo-fill:disabled { opacity: 0.5; cursor: not-allowed; }
+.auth-demo-fill--loading {
+  background: rgba(108,93,211,0.08); border-style: solid;
+}
+.auth-demo-fill__spinner {
+  animation: auth-spin 0.7s linear infinite;
+}
 
 /* ===== ROLE TOGGLE ===== */
 .auth-role-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 14px; }
