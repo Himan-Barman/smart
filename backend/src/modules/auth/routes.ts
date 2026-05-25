@@ -21,6 +21,11 @@ const startSignupSchema = z.object({
   identifier: z.string().regex(/^\d{12}$/, 'University ID must be exactly 12 digits'),
 });
 
+const verifyOtpOnlySchema = z.object({
+  email: z.string().email(),
+  code: z.string().regex(/^\d{6}$/),
+});
+
 const verifySignupSchema = z.object({
   email: z.string().email(),
   code: z.string().regex(/^\d{6}$/),
@@ -33,6 +38,7 @@ const resendSchema = z.object({
 
 const generateOtp = (): string => Math.floor(100000 + Math.random() * 900000).toString();
 
+// ─── LOGIN ───
 authRouter.post(
   '/login',
   asyncHandler(async (req, res) => {
@@ -64,6 +70,7 @@ authRouter.post(
   }),
 );
 
+// ─── SIGNUP STEP 1: SEND OTP ───
 authRouter.post(
   '/signup/start',
   asyncHandler(async (req, res) => {
@@ -112,6 +119,30 @@ authRouter.post(
   }),
 );
 
+// ─── SIGNUP STEP 2: VERIFY OTP ONLY (no account creation) ───
+authRouter.post(
+  '/signup/verify-otp',
+  asyncHandler(async (req, res) => {
+    const payload = verifyOtpOnlySchema.parse(req.body);
+    const email = payload.email.toLowerCase();
+
+    const otp = await prisma.otpCode.findFirst({
+      where: { email, code: payload.code },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!otp || otp.expiresAt.getTime() < Date.now()) {
+      throw new HttpError(400, 'Invalid or expired OTP. Please try again.');
+    }
+
+    res.json({
+      success: true,
+      message: 'OTP verified successfully!',
+    });
+  }),
+);
+
+// ─── SIGNUP STEP 3: SET PASSWORD & CREATE ACCOUNT ───
 authRouter.post(
   '/signup/verify',
   asyncHandler(async (req, res) => {
@@ -174,6 +205,7 @@ authRouter.post(
   }),
 );
 
+// ─── RESEND OTP ───
 authRouter.post(
   '/signup/resend',
   asyncHandler(async (req, res) => {
@@ -208,6 +240,7 @@ authRouter.post(
   }),
 );
 
+// ─── CURRENT USER ───
 authRouter.get(
   '/me',
   requireAuth,

@@ -1,16 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
-  ShieldCheck, ArrowLeft, RefreshCw,
-  Lock, Eye, EyeOff, CheckCircle,
+  ShieldCheck, ArrowLeft, RefreshCw, ArrowRight,
 } from 'lucide-react';
 
 const OTPVerification: React.FC = () => {
-  const { verifyOTP, resendOTP, otpEmail, setAuthStep, pendingSignup } = useAuth();
+  const { verifyOTPOnly, resendOTP, otpEmail, setAuthStep, pendingSignup } = useAuth();
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(60);
@@ -47,12 +43,10 @@ const OTPVerification: React.FC = () => {
   const handleVerify = (e: React.FormEvent) => {
     e.preventDefault(); setError('');
     const code = otp.join('');
-    if (code.length !== 6) { setError('Enter complete OTP'); return; }
-    if (password.length < 6) { setError('Min. 6 characters'); return; }
-    if (password !== confirmPassword) { setError('Passwords mismatch'); return; }
+    if (code.length !== 6) { setError('Enter the complete 6-digit code'); return; }
     setLoading(true);
     setTimeout(async () => {
-      const r = await verifyOTP(code, password);
+      const r = await verifyOTPOnly(code);
       if (!r.success) setError(r.message);
       setLoading(false);
     }, 600);
@@ -69,7 +63,7 @@ const OTPVerification: React.FC = () => {
         <div className="auth-bg-glow auth-bg-glow--3" />
       </div>
 
-      <div className="auth-card auth-card--wide">
+      <div className="auth-card auth-card--fixed" key="otp">
         {/* Back button */}
         <button className="auth-back-btn" onClick={() => setAuthStep('signup')}>
           <ArrowLeft size={15} /> Back to signup
@@ -83,8 +77,8 @@ const OTPVerification: React.FC = () => {
             </div>
             <span>Smart Campus</span>
           </div>
-          <h2>Verify identity</h2>
-          <p>OTP sent to <strong>{masked}</strong></p>
+          <h2>Verify your email</h2>
+          <p>Code sent to <strong>{masked}</strong></p>
         </div>
 
         {/* User profile preview */}
@@ -103,12 +97,6 @@ const OTPVerification: React.FC = () => {
           </div>
         )}
 
-        {/* Email notice */}
-        <div className="auth-otp-hint">
-          <span>📧</span>
-          <span>Check your email for the 6-digit verification code</span>
-        </div>
-
         {/* Steps indicator */}
         <div className="auth-steps-strip">
           <div className="auth-step-dot auth-step-dot--done">
@@ -125,6 +113,12 @@ const OTPVerification: React.FC = () => {
             <span>3</span>
             <small>Password</small>
           </div>
+        </div>
+
+        {/* Email notice */}
+        <div className="auth-otp-hint">
+          <span>📧</span>
+          <span>Check your email for the 6-digit verification code</span>
         </div>
 
         <form onSubmit={handleVerify} className="auth-form">
@@ -157,37 +151,8 @@ const OTPVerification: React.FC = () => {
             )}
           </div>
 
-          <div className="auth-field">
-            <label>Create password</label>
-            <div className="auth-input-wrap">
-              <Lock size={16} className="auth-input-icon" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                placeholder="Min. 6 characters"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-              />
-              <button type="button" className="auth-eye" onClick={() => setShowPassword(!showPassword)}>
-                {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-              </button>
-            </div>
-          </div>
-
-          <div className="auth-field">
-            <label>Confirm password</label>
-            <div className="auth-input-wrap">
-              <Lock size={16} className="auth-input-icon" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                placeholder="Re-enter password"
-                value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
-              />
-            </div>
-          </div>
-
           <button type="submit" className="auth-submit" disabled={loading}>
-            {loading ? <span className="auth-spinner" /> : <><CheckCircle size={16} /> Create Account</>}
+            {loading ? <span className="auth-spinner" /> : <><ArrowRight size={16} /> Verify &amp; Continue</>}
           </button>
         </form>
       </div>

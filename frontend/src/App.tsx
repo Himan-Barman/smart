@@ -20,6 +20,7 @@ import NotificationsPage from './pages/NotificationsPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import OTPVerification from './pages/OTPVerification';
+import SetPasswordPage from './pages/SetPasswordPage';
 
 /* ── Styles ── */
 import './styles/global.css';
@@ -178,6 +179,8 @@ const AuthRouter: React.FC = () => {
       return <SignupPage />;
     case 'otp':
       return <OTPVerification />;
+    case 'password':
+      return <SetPasswordPage />;
     case 'authenticated':
       return (
         <AppProvider>

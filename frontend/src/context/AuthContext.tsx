@@ -13,11 +13,12 @@ interface AuthContextType {
   registeredUsers: User[];
   otpEmail: string;
   pendingSignup: RegisteredPerson | null;
-  pendingPassword: string;
+  verifiedOtpCode: string;
 
   login: (email: string, password: string) => Promise<{ success: boolean; message: string }>;
   startSignup: (email: string, identifier: string) => Promise<{ success: boolean; message: string; person?: RegisteredPerson }>;
-  verifyOTP: (code: string, password: string) => Promise<{ success: boolean; message: string }>;
+  verifyOTPOnly: (code: string) => Promise<{ success: boolean; message: string }>;
+  completeSignup: (password: string) => Promise<{ success: boolean; message: string }>;
   resendOTP: () => Promise<void>;
   logout: () => void;
   setAuthStep: (step: AuthStep) => void;
@@ -38,7 +39,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
   const [otpEmail, setOtpEmail] = useState('');
   const [pendingSignup, setPendingSignup] = useState<RegisteredPerson | null>(null);
-  const [pendingPassword] = useState('');
+  const [verifiedOtpCode, setVerifiedOtpCode] = useState('');
 
   const setCurrentUser = useCallback((user: User) => {
     setCurrentUserState(user);
@@ -125,17 +126,39 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, []);
 
-  const verifyOTP = useCallback(async (code: string, password: string) => {
+  // Step 2: Verify OTP only → move to password page
+  const verifyOTPOnly = useCallback(async (code: string) => {
     try {
       if (!otpEmail) {
         return { success: false, message: 'Session expired. Please try signing up again.' };
       }
 
-      const response = await api.auth.verifySignup({ email: otpEmail, code, password });
+      await api.auth.verifyOtpOnly({ email: otpEmail, code });
+      setVerifiedOtpCode(code);
+      setAuthStep('password');
+
+      return { success: true, message: 'OTP verified!' };
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'OTP verification failed',
+      };
+    }
+  }, [otpEmail]);
+
+  // Step 3: Set password & create account
+  const completeSignup = useCallback(async (password: string) => {
+    try {
+      if (!otpEmail || !verifiedOtpCode) {
+        return { success: false, message: 'Session expired. Please try signing up again.' };
+      }
+
+      const response = await api.auth.verifySignup({ email: otpEmail, code: verifiedOtpCode, password });
       tokenStore.set(response.token);
       setCurrentUserState(response.user);
       setPendingSignup(null);
       setOtpEmail('');
+      setVerifiedOtpCode('');
       setAuthStep('authenticated');
 
       if (response.user.role === 'admin') {
@@ -151,10 +174,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (error) {
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'OTP verification failed',
+        message: error instanceof Error ? error.message : 'Account creation failed',
       };
     }
-  }, [otpEmail]);
+  }, [otpEmail, verifiedOtpCode]);
 
   const resendOTP = useCallback(async () => {
     if (!otpEmail) return;
@@ -174,6 +197,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setAuthStep('login');
     setOtpEmail('');
     setPendingSignup(null);
+    setVerifiedOtpCode('');
   }, []);
 
   const uploadPersons = useCallback(async (persons: RegisteredPerson[]) => {
@@ -207,10 +231,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         registeredUsers,
         otpEmail,
         pendingSignup,
-        pendingPassword,
+        verifiedOtpCode,
         login,
         startSignup,
-        verifyOTP,
+        verifyOTPOnly,
+        completeSignup,
         resendOTP,
         logout,
         setAuthStep,

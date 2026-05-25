@@ -483,6 +483,44 @@
 }
 .btn--danger:hover { opacity: 0.9; transform: translateY(-1px); }
 
+/* ===== PASSWORD STRENGTH METER ===== */
+.pwd-strength { margin: -4px 0 8px; }
+.pwd-strength__bar {
+  height: 4px; background: var(--surface-2); border-radius: 4px; overflow: hidden;
+  margin-bottom: 10px;
+}
+.pwd-strength__fill {
+  height: 100%; border-radius: 4px; transition: width 0.3s ease, background 0.3s ease;
+}
+.pwd-strength__rules {
+  list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px;
+}
+.pwd-strength__rules li {
+  display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600;
+  transition: color 0.2s;
+}
+.pwd-rule--pass { color: var(--accent-emerald); }
+.pwd-rule--fail { color: var(--text-muted); }
+
+/* ===== PASSWORD MATCH INDICATOR ===== */
+.auth-match-icon {
+  display: flex; align-items: center; padding: 0 8px; flex-shrink: 0;
+}
+.auth-match--yes { color: var(--accent-emerald); }
+.auth-match--no { color: var(--accent-red); }
+
+/* ===== VERIFIED BADGE IN USER PREVIEW ===== */
+.auth-user-preview__verified {
+  display: flex; align-items: center; gap: 4px; margin-left: auto;
+  font-size: 11px; font-weight: 700; color: var(--accent-emerald);
+  background: var(--accent-emerald-bg); padding: 4px 10px; border-radius: 8px;
+}
+
+/* ===== LOCK ICON VARIANT ===== */
+.auth-card__logo-icon--lock {
+  background: linear-gradient(135deg, var(--accent-emerald), #34d399);
+}
+
 /* ===== RESPONSIVE ===== */
 @media (max-width: 768px) {
   .auth-page { padding: 12px; }

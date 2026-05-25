@@ -122,6 +122,13 @@ export const api = {
         auth: false,
       });
     },
+    verifyOtpOnly(payload: { email: string; code: string }) {
+      return request<{ success: boolean; message: string }>('/auth/signup/verify-otp', {
+        method: 'POST',
+        body: payload,
+        auth: false,
+      });
+    },
     verifySignup(payload: { email: string; code: string; password: string }) {
       return request<{ success: boolean; message: string; token: string; user: User }>('/auth/signup/verify', {
         method: 'POST',
