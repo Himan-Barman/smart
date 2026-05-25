@@ -12,7 +12,6 @@ interface AuthContextType {
   registeredPersons: RegisteredPerson[];
   registeredUsers: User[];
   otpEmail: string;
-  otpCode: string;
   pendingSignup: RegisteredPerson | null;
   pendingPassword: string;
 
@@ -38,7 +37,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [registeredPersons, setRegisteredPersons] = useState<RegisteredPerson[]>([]);
   const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
   const [otpEmail, setOtpEmail] = useState('');
-  const [otpCode, setOtpCode] = useState('');
   const [pendingSignup, setPendingSignup] = useState<RegisteredPerson | null>(null);
   const [pendingPassword] = useState('');
 
@@ -114,7 +112,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const startSignup = useCallback(async (email: string, identifier: string) => {
     try {
       const response = await api.auth.startSignup({ email, identifier });
-      setOtpCode(response.otpCode);
       setOtpEmail(response.otpEmail);
       setPendingSignup(response.person);
       setAuthStep('otp');
@@ -138,7 +135,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       tokenStore.set(response.token);
       setCurrentUserState(response.user);
       setPendingSignup(null);
-      setOtpCode('');
       setOtpEmail('');
       setAuthStep('authenticated');
 
@@ -164,8 +160,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!otpEmail) return;
 
     try {
-      const response = await api.auth.resendSignupOtp({ email: otpEmail });
-      setOtpCode(response.otpCode);
+      await api.auth.resendSignupOtp({ email: otpEmail });
     } catch {
       // silently keep existing OTP for UI fallback
     }
@@ -177,7 +172,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setRegisteredPersons([]);
     setRegisteredUsers([]);
     setAuthStep('login');
-    setOtpCode('');
     setOtpEmail('');
     setPendingSignup(null);
   }, []);
@@ -212,7 +206,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         registeredPersons,
         registeredUsers,
         otpEmail,
-        otpCode,
         pendingSignup,
         pendingPassword,
         login,

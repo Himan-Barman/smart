@@ -40,11 +40,15 @@
   background: #FFFFFF;
   border: 1px solid #E5E5E5; border-radius: 22px;
   padding: 28px 26px; box-shadow: 0 12px 48px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.03);
-  animation: card-enter 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: card-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .auth-card--wide { max-width: 430px; }
+/* Fixed dimensions so login & signup are identical size */
+.auth-card--fixed { min-height: 420px; display: flex; flex-direction: column; }
+.auth-card--fixed .auth-form { flex: 1; display: flex; flex-direction: column; gap: 12px; }
+.auth-card--fixed .auth-submit { margin-top: auto; }
 @keyframes card-enter {
-  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
@@ -146,6 +150,10 @@
   font-size: 11px; font-weight: 600; color: var(--text-muted);
   letter-spacing: 0.3px; text-transform: uppercase;
 }
+.auth-field__hint {
+  font-size: 10px; color: var(--text-muted); margin-top: -2px;
+  letter-spacing: 0.2px; padding-left: 2px;
+}
 
 .auth-input-wrap {
   display: flex; align-items: center;
@@ -168,6 +176,19 @@
   color: var(--text-muted); cursor: pointer; transition: color 0.15s;
 }
 .auth-eye:hover { color: #6C5DD3; }
+
+/* ===== DOMAIN SUFFIX ===== */
+.auth-input-wrap--domain input {
+  flex: 0 1 auto; min-width: 60px; padding-right: 2px;
+}
+.auth-domain-suffix {
+  font-size: 12px; font-weight: 600; color: #6C5DD3;
+  white-space: nowrap; padding-right: 12px; user-select: none;
+  opacity: 0.7; letter-spacing: -0.2px;
+}
+.auth-input-wrap--domain:focus-within .auth-domain-suffix {
+  opacity: 1;
+}
 
 /* ===== OTP GRID ===== */
 .auth-otp-grid { display: flex; gap: 7px; justify-content: center; margin: 2px 0; }

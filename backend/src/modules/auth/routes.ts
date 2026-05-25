@@ -7,6 +7,7 @@ import { hashPassword, verifyPassword } from '../../lib/password.js';
 import { prisma } from '../../lib/prisma.js';
 import { serializer } from '../../lib/serializers.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { sendOtpEmail } from '../../lib/email.js';
 
 export const authRouter = Router();
 
@@ -17,7 +18,7 @@ const loginSchema = z.object({
 
 const startSignupSchema = z.object({
   email: z.string().email(),
-  identifier: z.string().min(1),
+  identifier: z.string().regex(/^\d{12}$/, 'University ID must be exactly 12 digits'),
 });
 
 const verifySignupSchema = z.object({
@@ -99,11 +100,13 @@ authRouter.post(
       },
     });
 
+    // Send OTP via email
+    await sendOtpEmail(email, code, person.name);
+
     res.json({
       success: true,
-      message: `OTP sent to ${email}`,
+      message: `Verification code sent to ${email}`,
       otpEmail: email,
-      otpCode: code,
       person: serializer.registeredPerson(person),
     });
   }),
@@ -182,6 +185,9 @@ authRouter.post(
       throw new HttpError(404, 'Session expired. Please try signing up again.');
     }
 
+    // Clear old codes before generating a new one
+    await prisma.otpCode.deleteMany({ where: { email } });
+
     const code = generateOtp();
     await prisma.otpCode.create({
       data: {
@@ -191,10 +197,12 @@ authRouter.post(
       },
     });
 
+    // Send OTP via email
+    await sendOtpEmail(email, code, person.name);
+
     res.json({
       success: true,
-      message: `OTP resent to ${email}`,
-      otpCode: code,
+      message: `Verification code resent to ${email}`,
       otpEmail: email,
     });
   }),

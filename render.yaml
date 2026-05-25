@@ -28,6 +28,8 @@ services:
         value: "0.0.0.0"
       - key: PORT
         value: "4000"
+      - key: RESEND_API_KEY
+        sync: false
 
 databases:
   - name: smart-campus-db

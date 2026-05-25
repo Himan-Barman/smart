@@ -115,7 +115,6 @@ export const api = {
         success: boolean;
         message: string;
         otpEmail: string;
-        otpCode: string;
         person: RegisteredPerson;
       }>('/auth/signup/start', {
         method: 'POST',
@@ -131,7 +130,7 @@ export const api = {
       });
     },
     resendSignupOtp(payload: { email: string }) {
-      return request<{ success: boolean; message: string; otpCode: string; otpEmail: string }>('/auth/signup/resend', {
+      return request<{ success: boolean; message: string; otpEmail: string }>('/auth/signup/resend', {
         method: 'POST',
         body: payload,
         auth: false,

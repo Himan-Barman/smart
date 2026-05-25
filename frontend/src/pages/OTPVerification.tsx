@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 
 const OTPVerification: React.FC = () => {
-  const { verifyOTP, resendOTP, otpEmail, otpCode, setAuthStep, pendingSignup } = useAuth();
+  const { verifyOTP, resendOTP, otpEmail, setAuthStep, pendingSignup } = useAuth();
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -103,10 +103,10 @@ const OTPVerification: React.FC = () => {
           </div>
         )}
 
-        {/* Demo OTP */}
+        {/* Email notice */}
         <div className="auth-otp-hint">
-          <span>🔑</span>
-          <code>{otpCode}</code>
+          <span>📧</span>
+          <span>Check your email for the 6-digit verification code</span>
         </div>
 
         {/* Steps indicator */}

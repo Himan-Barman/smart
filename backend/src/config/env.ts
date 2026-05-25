@@ -14,6 +14,8 @@ const envSchema = z.object({
   SERVE_FRONTEND: z.enum(['true', 'false', '1', '0']).default('false').transform((value) => value === 'true' || value === '1'),
   FRONTEND_DIST_PATH: z.string().optional(),
   TRUST_PROXY: z.enum(['true', 'false', '1', '0']).default('false').transform((value) => value === 'true' || value === '1'),
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
