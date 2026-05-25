@@ -438,6 +438,51 @@
 .role-badge--teacher { background: var(--accent-blue-bg); color: var(--accent-blue); }
 .role-badge--admin { background: var(--accent-purple-bg); color: var(--accent-purple); }
 
+/* ===== VERIFIED BADGE ===== */
+.verified-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 700;
+}
+.verified-badge--yes {
+  background: var(--accent-emerald-bg); color: var(--accent-emerald);
+  border: 1px solid rgba(60,203,127,0.15);
+}
+.verified-badge--no {
+  background: var(--surface-2); color: var(--text-muted);
+  border: 1px solid var(--glass-border);
+}
+
+/* ===== DELETE CONFIRMATION ===== */
+.modal--sm { max-width: 420px; }
+.modal__header--danger h3 { color: var(--accent-red); display: flex; align-items: center; gap: 8px; }
+.modal__body { padding: 0 24px 16px; }
+.modal__body p { font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin: 0 0 12px; }
+.delete-preview {
+  display: flex; flex-direction: column; gap: 4px; padding: 12px 16px;
+  background: var(--surface-2); border-radius: 10px; margin: 12px 0;
+  border: 1px solid var(--glass-border);
+}
+.delete-preview strong { font-size: 13px; color: var(--text-primary); }
+.delete-preview span { font-size: 11px; color: var(--text-muted); }
+.delete-preview .role-badge { align-self: flex-start; margin-top: 4px; }
+.delete-warning {
+  font-size: 11px !important; color: var(--text-muted) !important;
+  background: rgba(255,193,7,0.06); padding: 10px 12px; border-radius: 8px;
+  border: 1px solid rgba(255,193,7,0.12); line-height: 1.5 !important;
+}
+.modal__actions {
+  display: flex; gap: 8px; justify-content: flex-end;
+  padding: 0 24px 20px;
+}
+.btn--danger {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 18px; border-radius: 8px; border: none;
+  background: var(--accent-red); color: #fff;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-family: inherit; transition: all 0.2s;
+}
+.btn--danger:hover { opacity: 0.9; transform: translateY(-1px); }
+
 /* ===== RESPONSIVE ===== */
 @media (max-width: 768px) {
   .auth-page { padding: 12px; }

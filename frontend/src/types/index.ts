@@ -14,6 +14,7 @@ export interface RegisteredPerson {
   course?: string;       // students
   subjects?: string[];   // teachers
   phone?: string;
+  isVerified?: boolean;  // true when user has signed up
 }
 
 export interface User {

@@ -7,6 +7,7 @@ import {
   Upload, FileSpreadsheet, Users, Trash2, Download,
   CheckCircle, AlertCircle, Search, UserPlus, X,
   GraduationCap, User, Globe, ClipboardList,
+  ShieldCheck, AlertTriangle,
 } from 'lucide-react';
 
 type SpreadsheetCell = string | number | boolean | Date | null;
@@ -30,14 +31,17 @@ const rowsToRecords = (rows: SpreadsheetCell[][]): Record<string, string>[] => {
   );
 };
 
+type FilterType = 'all' | 'verified' | 'student' | 'teacher';
+
 const AdminUploadPage: React.FC = () => {
   const { registeredPersons, uploadPersons, removeRegisteredPerson } = useAuth();
   const [uploadResult, setUploadResult] = useState<{ count: number; errors: string[] } | null>(null);
   const [previewData, setPreviewData] = useState<RegisteredPerson[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterRole, setFilterRole] = useState<'all' | UserRole>('all');
+  const [filterType, setFilterType] = useState<FilterType>('all');
   const [showAddManual, setShowAddManual] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<RegisteredPerson | null>(null);
   const [manualForm, setManualForm] = useState({
     name: '', email: '', role: 'student' as UserRole,
     department: '', identifier: '', semester: '', course: '',
@@ -136,9 +140,15 @@ const AdminUploadPage: React.FC = () => {
     setShowPreview(false);
   };
 
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    await removeRegisteredPerson(deleteTarget.id);
+    setDeleteTarget(null);
+  };
+
   const handleManualAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    const id = manualForm.role === 'student' ? manualForm.identifier : manualForm.identifier;
+    const id = manualForm.identifier;
     const person: RegisteredPerson = {
       id,
       name: manualForm.name,
@@ -163,8 +173,8 @@ const AdminUploadPage: React.FC = () => {
   const downloadTemplate = () => {
     const headers = ['name', 'email', 'role', 'department', 'enrollment_no', 'employee_id', 'semester', 'course', 'phone', 'subjects'];
     const sampleRows = [
-      ['John Doe', 'john@university.edu', 'student', 'Computer Science', 'CS2025001', '', '2', 'B.Tech CSE', '9876543210', ''],
-      ['Dr. Jane Smith', 'jane@university.edu', 'teacher', 'Computer Science', '', 'EMP010', '', '', '9876500010', 'Operating Systems,DBMS'],
+      ['John Doe', 'john@technoindiaeducation.com', 'student', 'Computer Science', '231001102001', '', '2', 'B.Tech CSE', '9876543210', ''],
+      ['Dr. Jane Smith', 'jane@technoindiaeducation.com', 'teacher', 'Computer Science', '', '310001100001', '', '', '9876500010', 'Operating Systems,DBMS'],
     ];
     const csv = [headers.join(','), ...sampleRows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -176,16 +186,22 @@ const AdminUploadPage: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  // Filter logic
   const filtered = registeredPersons.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.id.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = filterRole === 'all' || p.role === filterRole;
-    return matchesSearch && matchesRole;
+
+    if (filterType === 'all') return matchesSearch;
+    if (filterType === 'verified') return matchesSearch && p.isVerified;
+    if (filterType === 'student') return matchesSearch && p.role === 'student';
+    if (filterType === 'teacher') return matchesSearch && p.role === 'teacher';
+    return matchesSearch;
   });
 
   const studentCount = registeredPersons.filter(p => p.role === 'student').length;
   const teacherCount = registeredPersons.filter(p => p.role === 'teacher').length;
+  const verifiedCount = registeredPersons.filter(p => p.isVerified).length;
 
   return (
     <div className="page">
@@ -210,6 +226,13 @@ const AdminUploadPage: React.FC = () => {
           <div>
             <span className="upload-stat__value">{teacherCount}</span>
             <span className="upload-stat__label">Teachers</span>
+          </div>
+        </div>
+        <div className="upload-stat">
+          <ShieldCheck size={22} />
+          <div>
+            <span className="upload-stat__value">{verifiedCount}</span>
+            <span className="upload-stat__label">Verified</span>
           </div>
         </div>
       </div>
@@ -347,7 +370,7 @@ const AdminUploadPage: React.FC = () => {
                 </div>
               </div>
               <div className="form-group">
-                <label>{manualForm.role === 'student' ? 'Enrollment Number' : 'Employee ID'}</label>
+                <label>{manualForm.role === 'student' ? 'Enrollment Number (12-digit)' : 'Employee ID (12-digit)'}</label>
                 <input type="text" required value={manualForm.identifier} onChange={e => setManualForm(f => ({ ...f, identifier: e.target.value }))} />
               </div>
               {manualForm.role === 'student' && (
@@ -380,6 +403,39 @@ const AdminUploadPage: React.FC = () => {
         </div>
       )}
 
+      {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div className="modal-overlay" onClick={() => setDeleteTarget(null)}>
+          <div className="modal modal--sm" onClick={e => e.stopPropagation()}>
+            <div className="modal__header modal__header--danger">
+              <h3><AlertTriangle size={18} /> Confirm Delete</h3>
+              <button className="modal__close" onClick={() => setDeleteTarget(null)}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="modal__body">
+              <p>Are you sure you want to delete this person?</p>
+              <div className="delete-preview">
+                <strong>{deleteTarget.name}</strong>
+                <span>{deleteTarget.email}</span>
+                <span className={`role-badge role-badge--${deleteTarget.role}`}>{deleteTarget.role}</span>
+              </div>
+              <p className="delete-warning">
+                {deleteTarget.isVerified
+                  ? '⚠️ This person has already signed up. Deleting will NOT remove their account, only the registration record.'
+                  : 'This person has not signed up yet. They will no longer be able to create an account.'}
+              </p>
+            </div>
+            <div className="modal__actions">
+              <button className="btn btn--outline" onClick={() => setDeleteTarget(null)}>Cancel</button>
+              <button className="btn btn--danger" onClick={handleDelete}>
+                <Trash2 size={14} /> Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Registered Persons Table */}
       <div className="upload-section">
         <div className="upload-section__header">
@@ -392,13 +448,18 @@ const AdminUploadPage: React.FC = () => {
             <input placeholder="Search by name, email, or ID..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
           </div>
           <div className="page__filters">
-            {(['all', 'student', 'teacher'] as const).map(r => (
-              <button key={r} className={`filter-chip ${filterRole === r ? 'filter-chip--active' : ''}`} onClick={() => setFilterRole(r)}>
-                {r === 'all'
-                  ? <><Globe size={13}/> All</>
-                  : r === 'student'
-                    ? <><GraduationCap size={13}/> Students</>
-                    : <><User size={13}/> Teachers</>}
+            {([
+              { key: 'all' as FilterType, label: 'All', icon: <Globe size={13}/> },
+              { key: 'verified' as FilterType, label: 'Verified', icon: <ShieldCheck size={13}/> },
+              { key: 'student' as FilterType, label: 'Students', icon: <GraduationCap size={13}/> },
+              { key: 'teacher' as FilterType, label: 'Teachers', icon: <User size={13}/> },
+            ]).map(f => (
+              <button
+                key={f.key}
+                className={`filter-chip ${filterType === f.key ? 'filter-chip--active' : ''}`}
+                onClick={() => setFilterType(f.key)}
+              >
+                {f.icon} {f.label}
               </button>
             ))}
           </div>
@@ -411,6 +472,7 @@ const AdminUploadPage: React.FC = () => {
                 <th>Name</th>
                 <th>Email</th>
                 <th>Role</th>
+                <th>Status</th>
                 <th>Department</th>
                 <th>ID</th>
                 <th>Details</th>
@@ -419,7 +481,7 @@ const AdminUploadPage: React.FC = () => {
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={7} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>No records found</td></tr>
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>No records found</td></tr>
               ) : filtered.map(p => (
                 <tr key={p.id}>
                   <td><strong>{p.name}</strong></td>
@@ -428,6 +490,17 @@ const AdminUploadPage: React.FC = () => {
                     <span className={`role-badge role-badge--${p.role}`}>
                       {p.role}
                     </span>
+                  </td>
+                  <td>
+                    {p.isVerified ? (
+                      <span className="verified-badge verified-badge--yes">
+                        <CheckCircle size={12} /> Verified
+                      </span>
+                    ) : (
+                      <span className="verified-badge verified-badge--no">
+                        Pending
+                      </span>
+                    )}
                   </td>
                   <td>{p.department}</td>
                   <td><code>{p.enrollmentNo || p.employeeId}</code></td>
@@ -440,7 +513,7 @@ const AdminUploadPage: React.FC = () => {
                   <td>
                     <button
                       className="btn btn--ghost btn--sm"
-                      onClick={() => removeRegisteredPerson(p.id)}
+                      onClick={() => setDeleteTarget(p)}
                       style={{ color: 'var(--accent-red)' }}
                     >
                       <Trash2 size={14} />

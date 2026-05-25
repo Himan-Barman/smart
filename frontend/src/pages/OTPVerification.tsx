@@ -13,7 +13,7 @@ const OTPVerification: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [resendTimer, setResendTimer] = useState(30);
+  const [resendTimer, setResendTimer] = useState(60);
   const [canResend, setCanResend] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -42,7 +42,7 @@ const OTPVerification: React.FC = () => {
     if (e.key === 'Backspace' && !otp[i] && i > 0) inputRefs.current[i - 1]?.focus();
   };
 
-  const handleResend = async () => { await resendOTP(); setResendTimer(30); setCanResend(false); setError(''); };
+  const handleResend = async () => { await resendOTP(); setResendTimer(60); setCanResend(false); setError(''); };
 
   const handleVerify = (e: React.FormEvent) => {
     e.preventDefault(); setError('');

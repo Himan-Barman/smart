@@ -29,8 +29,14 @@ userRouter.get(
   '/registered-persons',
   requireRole('admin'),
   asyncHandler(async (_req, res) => {
-    const persons = await prisma.registeredPerson.findMany({ orderBy: { createdAt: 'desc' } });
-    res.json(persons.map((person) => serializer.registeredPerson(person)));
+    const persons = await prisma.registeredPerson.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { user: { select: { id: true } } },
+    });
+    res.json(persons.map((person) => ({
+      ...serializer.registeredPerson(person),
+      isVerified: person.user !== null,
+    })));
   }),
 );
 
