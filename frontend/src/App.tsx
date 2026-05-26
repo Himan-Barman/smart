@@ -14,7 +14,7 @@ import SchedulePage from './pages/SchedulePage';
 import DepartmentsPage from './pages/DepartmentsPage';
 import DepartmentDetailPage from './pages/DepartmentDetailPage';
 import CourseDetailPage from './pages/CourseDetailPage';
-import AdminUploadPage from './pages/AdminUploadPage';
+import AdminUploadPage from './pages/UserManagement';
 import ProfilePage from './pages/ProfilePage';
 import NotificationsPage from './pages/NotificationsPage';
 import LoginPage from './pages/LoginPage';
@@ -30,6 +30,7 @@ import './styles/auth.css';
 import './styles/dashboard.css';
 import './styles/departments.css';
 import './styles/courseDetail.css';
+import './styles/usermanagement.css';
 
 const PageRenderer: React.FC = () => {
   const { currentPage } = useApp();

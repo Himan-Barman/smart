@@ -15,6 +15,7 @@ export interface RegisteredPerson {
   subjects?: string[];   // teachers
   phone?: string;
   isVerified?: boolean;  // true when user has signed up
+  createdAt?: string;    // registration timestamp
 }
 
 export interface User {

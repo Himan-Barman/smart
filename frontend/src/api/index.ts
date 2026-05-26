@@ -156,13 +156,25 @@ export const api = {
 
   users: {
     listRegisteredPersons() {
-      return request<RegisteredPerson[]>('/users/registered-persons');
+      return request<(RegisteredPerson & { createdAt?: string })[]>('/users/registered-persons');
     },
     listRegisteredUsers() {
       return request<User[]>('/users/accounts');
     },
+    getStats() {
+      return request<{
+        totalUsers: number;
+        registeredAccounts: number;
+        students: number;
+        teachers: number;
+        verified: number;
+        pendingVerification: number;
+        departmentCount: number;
+        recentlyAdded: number;
+      }>('/users/stats');
+    },
     uploadRegisteredPersons(persons: RegisteredPerson[]) {
-      return request<{ count: number }>('/users/registered-persons/bulk', {
+      return request<{ count: number; duplicates: string[] }>('/users/registered-persons/bulk', {
         method: 'POST',
         body: persons,
       });
@@ -170,6 +182,22 @@ export const api = {
     removeRegisteredPerson(id: string) {
       return request<void>(`/users/registered-persons/${id}`, {
         method: 'DELETE',
+      });
+    },
+    updateRegisteredPerson(id: string, updates: Partial<RegisteredPerson>) {
+      return request<RegisteredPerson>(`/users/registered-persons/${id}`, {
+        method: 'PATCH',
+        body: updates,
+      });
+    },
+    deleteAccount(id: string) {
+      return request<void>(`/users/accounts/${id}`, {
+        method: 'DELETE',
+      });
+    },
+    resetPassword(id: string) {
+      return request<{ success: boolean; temporaryPassword: string }>(`/users/accounts/${id}/reset-password`, {
+        method: 'POST',
       });
     },
   },

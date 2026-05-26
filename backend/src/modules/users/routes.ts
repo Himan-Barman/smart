@@ -6,6 +6,7 @@ import { mapper } from '../../lib/mappers.js';
 import { prisma } from '../../lib/prisma.js';
 import { serializer } from '../../lib/serializers.js';
 import { requireAuth, requireRole } from '../../middleware/auth.js';
+import { hashPassword } from '../../lib/password.js';
 
 export const userRouter = Router();
 
@@ -25,6 +26,53 @@ const personSchema = z.object({
   phone: z.string().optional(),
 });
 
+/* ── Stats endpoint for dashboard metrics ── */
+userRouter.get(
+  '/stats',
+  requireRole('admin'),
+  asyncHandler(async (_req, res) => {
+    const [
+      totalPersons,
+      totalUsers,
+      students,
+      teachers,
+      verifiedCount,
+      departmentCount,
+      recentlyAdded,
+    ] = await Promise.all([
+      prisma.registeredPerson.count(),
+      prisma.user.count({ where: { role: { not: 'ADMIN' } } }),
+      prisma.registeredPerson.count({ where: { role: 'STUDENT' } }),
+      prisma.registeredPerson.count({ where: { role: 'TEACHER' } }),
+      // Count persons that have a linked user (verified)
+      prisma.registeredPerson.count({
+        where: { user: { isNot: null } },
+      }),
+      // Count distinct departments
+      prisma.registeredPerson.groupBy({ by: ['department'] }).then((g) => g.length),
+      // Recently added (last 7 days)
+      prisma.registeredPerson.count({
+        where: {
+          createdAt: {
+            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+          },
+        },
+      }),
+    ]);
+
+    res.json({
+      totalUsers: totalPersons,
+      registeredAccounts: totalUsers,
+      students,
+      teachers,
+      verified: verifiedCount,
+      pendingVerification: totalPersons - verifiedCount,
+      departmentCount,
+      recentlyAdded,
+    });
+  }),
+);
+
 userRouter.get(
   '/registered-persons',
   requireRole('admin'),
@@ -36,6 +84,7 @@ userRouter.get(
     res.json(persons.map((person) => ({
       ...serializer.registeredPerson(person),
       isVerified: person.user !== null,
+      createdAt: person.createdAt.toISOString(),
     })));
   }),
 );
@@ -47,6 +96,7 @@ userRouter.post(
     const payload = z.array(personSchema).parse(req.body);
 
     let added = 0;
+    const duplicates: string[] = [];
     for (const person of payload) {
       const existing = await prisma.registeredPerson.findFirst({
         where: {
@@ -59,7 +109,10 @@ userRouter.post(
         },
       });
 
-      if (existing) continue;
+      if (existing) {
+        duplicates.push(person.email);
+        continue;
+      }
 
       await prisma.registeredPerson.create({
         data: {
@@ -79,7 +132,7 @@ userRouter.post(
       added += 1;
     }
 
-    res.json({ count: added });
+    res.json({ count: added, duplicates });
   }),
 );
 
@@ -146,5 +199,85 @@ userRouter.get(
   asyncHandler(async (_req, res) => {
     const users = await prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
     res.json(users.map((user) => serializer.user(user)));
+  }),
+);
+
+/* ── Update registered person ── */
+userRouter.patch(
+  '/registered-persons/:id',
+  requireRole('admin'),
+  asyncHandler(async (req, res) => {
+    const id = req.params.id;
+    const updates = z.object({
+      name: z.string().min(1).optional(),
+      email: z.string().email().optional(),
+      department: z.string().min(1).optional(),
+      semester: z.number().int().positive().optional(),
+      course: z.string().optional(),
+      phone: z.string().optional(),
+    }).parse(req.body);
+
+    const existing = await prisma.registeredPerson.findUnique({ where: { id } });
+    if (!existing) {
+      throw new HttpError(404, 'Person not found');
+    }
+
+    const updated = await prisma.registeredPerson.update({
+      where: { id },
+      data: {
+        ...(updates.name && { name: updates.name }),
+        ...(updates.email && { email: updates.email.toLowerCase() }),
+        ...(updates.department && { department: updates.department }),
+        ...(updates.semester !== undefined && { semester: updates.semester }),
+        ...(updates.course !== undefined && { course: updates.course }),
+        ...(updates.phone !== undefined && { phone: updates.phone }),
+      },
+      include: { user: { select: { id: true } } },
+    });
+
+    res.json({
+      ...serializer.registeredPerson(updated),
+      isVerified: updated.user !== null,
+      createdAt: updated.createdAt.toISOString(),
+    });
+  }),
+);
+
+/* ── Delete user account ── */
+userRouter.delete(
+  '/accounts/:id',
+  requireRole('admin'),
+  asyncHandler(async (req, res) => {
+    const id = req.params.id;
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) {
+      throw new HttpError(404, 'User account not found');
+    }
+    if (user.role === 'ADMIN') {
+      throw new HttpError(403, 'Cannot delete admin accounts');
+    }
+    await prisma.user.delete({ where: { id } });
+    res.status(204).send();
+  }),
+);
+
+/* ── Reset password ── */
+userRouter.post(
+  '/accounts/:id/reset-password',
+  requireRole('admin'),
+  asyncHandler(async (req, res) => {
+    const id = req.params.id;
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) {
+      throw new HttpError(404, 'User not found');
+    }
+    // Generate a temporary password
+    const tempPassword = 'Smart@' + Math.random().toString(36).slice(2, 8);
+    const passwordHash = await hashPassword(tempPassword);
+    await prisma.user.update({
+      where: { id },
+      data: { passwordHash },
+    });
+    res.json({ success: true, temporaryPassword: tempPassword });
   }),
 );

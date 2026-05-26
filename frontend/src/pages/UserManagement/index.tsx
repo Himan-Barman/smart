@@ -1,0 +1,256 @@
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useAuth } from '../../context/AuthContext';
+import { api } from '../../api';
+import type { RegisteredPerson, UserRole } from '../../types';
+import Papa from 'papaparse';
+import { readSheet } from 'read-excel-file/browser';
+import { Search, Upload, Download, UserPlus, X, FileSpreadsheet, CheckCircle, AlertCircle, ClipboardList, Trash2 } from 'lucide-react';
+import { ROWS_PER_PAGE, type QuickFilter, type UserStats } from './constants';
+import { MetricsRow, UserTable, Pagination, ProfileDrawer, DeleteModal, AddUserModal, ResetPasswordModal } from './components';
+
+type SpreadsheetCell = string | number | boolean | Date | null;
+const cellStr = (c: SpreadsheetCell | undefined): string => { if (c instanceof Date) return c.toISOString().split('T')[0] ?? ''; if (c == null) return ''; return String(c).trim(); };
+const rowsToRecords = (rows: SpreadsheetCell[][]): Record<string, string>[] => { const [h, ...b] = rows; if (!h) return []; const hd = h.map(cellStr); return b.map(r => hd.reduce<Record<string, string>>((o, k, i) => { if (k) o[k] = cellStr(r[i]); return o; }, {})); };
+
+const AdminUploadPage: React.FC = () => {
+  const { registeredPersons, registeredUsers, uploadPersons, removeRegisteredPerson } = useAuth();
+  const [stats, setStats] = useState<UserStats>({ totalUsers: 0, registeredAccounts: 0, students: 0, teachers: 0, verified: 0, pendingVerification: 0, departmentCount: 0, recentlyAdded: 0 });
+  const [search, setSearch] = useState('');
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
+  const [deptFilter, setDeptFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [showAdd, setShowAdd] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<RegisteredPerson | null>(null);
+  const [viewTarget, setViewTarget] = useState<RegisteredPerson | null>(null);
+  const [resetTarget, setResetTarget] = useState<RegisteredPerson | null>(null);
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [previewData, setPreviewData] = useState<RegisteredPerson[]>([]);
+  const [importResult, setImportResult] = useState<{ count: number; errors: string[]; duplicates: string[] } | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // Load stats
+  useEffect(() => { api.users.getStats().then(setStats).catch(() => {}); }, [registeredPersons]);
+
+  // Departments list
+  const departments = useMemo(() => [...new Set(registeredPersons.map(p => p.department).filter(Boolean))].sort(), [registeredPersons]);
+
+  // Filter logic
+  const filtered = useMemo(() => {
+    let list = registeredPersons;
+    const s = search.toLowerCase();
+    if (s) list = list.filter(p => p.name.toLowerCase().includes(s) || p.email.toLowerCase().includes(s) || p.id.toLowerCase().includes(s) || (p.enrollmentNo || '').toLowerCase().includes(s) || (p.employeeId || '').toLowerCase().includes(s));
+    if (deptFilter) list = list.filter(p => p.department === deptFilter);
+    if (quickFilter === 'students') list = list.filter(p => p.role === 'student');
+    else if (quickFilter === 'teachers') list = list.filter(p => p.role === 'teacher');
+    else if (quickFilter === 'pending') list = list.filter(p => !p.isVerified);
+    else if (quickFilter === 'verified') list = list.filter(p => p.isVerified);
+    else if (quickFilter === 'recent') list = list.filter(p => p.createdAt && new Date(p.createdAt) > new Date(Date.now() - 7 * 86400000));
+    return list;
+  }, [registeredPersons, search, quickFilter, deptFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ROWS_PER_PAGE));
+  const paginated = filtered.slice((page - 1) * ROWS_PER_PAGE, page * ROWS_PER_PAGE);
+
+  useEffect(() => { setPage(1); }, [search, quickFilter, deptFilter]);
+
+  // Selection
+  const toggleSelect = useCallback((id: string) => setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; }), []);
+  const toggleAll = useCallback(() => { const ids = paginated.map(p => p.id); setSelected(prev => ids.every(id => prev.has(id)) ? new Set() : new Set(ids)); }, [paginated]);
+  const allSelected = paginated.length > 0 && paginated.every(p => selected.has(p.id));
+
+  // File parsing
+  const parseRow = (row: Record<string, string>, i: number): { person?: RegisteredPerson; error?: string } => {
+    const name = row['name'] || row['Name'] || row['FULL_NAME'] || row['full_name'] || '';
+    const email = row['email'] || row['Email'] || row['EMAIL'] || '';
+    const role = (row['role'] || row['Role'] || 'student').toLowerCase() as UserRole;
+    const dept = row['department'] || row['Department'] || '';
+    const enr = row['enrollment_no'] || row['enrollmentNo'] || row['Enrollment No'] || '';
+    const emp = row['employee_id'] || row['employeeId'] || row['Employee ID'] || '';
+    const sem = row['semester'] || row['Semester'] || '';
+    const course = row['course'] || row['Course'] || '';
+    const phone = row['phone'] || row['Phone'] || '';
+    const subjects = row['subjects'] || row['Subjects'] || '';
+    if (!name || !email) return { error: `Row ${i+1}: Missing name/email` };
+    if (!['student','teacher'].includes(role)) return { error: `Row ${i+1}: Invalid role` };
+    if (role === 'student' && !enr) return { error: `Row ${i+1}: Missing enrollment no` };
+    if (role === 'teacher' && !emp) return { error: `Row ${i+1}: Missing employee ID` };
+    const id = role === 'student' ? enr : emp;
+    return { person: { id, name, email, role, department: dept, ...(role === 'student' ? { enrollmentNo: enr, semester: parseInt(sem) || undefined, course: course || undefined } : { employeeId: emp, subjects: subjects ? subjects.split(',').map(s => s.trim()) : undefined }), phone: phone || undefined } };
+  };
+
+  const processFile = (rows: Record<string, string>[]) => {
+    const persons: RegisteredPerson[] = []; const errors: string[] = [];
+    rows.forEach((r, i) => { const res = parseRow(r, i); if (res.person) persons.push(res.person); if (res.error) errors.push(res.error); });
+    setPreviewData(persons); setImportResult({ count: persons.length, errors, duplicates: [] }); setShowImport(true);
+  };
+
+  const handleFile = async (file: File) => {
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (ext === 'csv') Papa.parse<Record<string, string>>(file, { header: true, skipEmptyLines: true, complete: r => processFile(r.data), error: () => setImportResult({ count: 0, errors: ['Failed to parse CSV'], duplicates: [] }) });
+    else if (ext === 'xlsx') { try { const rows = await readSheet(file); processFile(rowsToRecords(rows as unknown as SpreadsheetCell[][])); } catch { setImportResult({ count: 0, errors: ['Failed to parse XLSX'], duplicates: [] }); } }
+    else setImportResult({ count: 0, errors: ['Use .csv or .xlsx'], duplicates: [] });
+  };
+
+  const confirmImport = async () => {
+    const c = await uploadPersons(previewData);
+    setImportResult({ count: c, errors: [], duplicates: [] }); setPreviewData([]); setShowImport(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); };
+
+  const downloadTemplate = () => {
+    const csv = ['name,email,role,department,enrollment_no,employee_id,semester,course,phone,subjects','John Doe,john@uni.edu,student,Computer Science,231001102001,,2,B.Tech CSE,9876543210,','Dr. Jane,jane@uni.edu,teacher,Computer Science,,310001100001,,,9876500010,OS DBMS'].join('\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'smart_campus_template.csv'; a.click();
+  };
+
+  const exportCSV = () => {
+    const header = 'Name,Email,Role,Department,ID,Semester,Course,Phone,Verified\n';
+    const rows = filtered.map(p => `${p.name},${p.email},${p.role},${p.department},${p.enrollmentNo||p.employeeId||p.id},${p.semester||''},${p.course||''},${p.phone||''},${p.isVerified?'Yes':'No'}`).join('\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([header + rows], { type: 'text/csv' })); a.download = 'users_export.csv'; a.click();
+  };
+
+  // Actions
+  const handleAction = async (action: string, person: RegisteredPerson) => {
+    if (action === 'view') setViewTarget(person);
+    else if (action === 'delete') setDeleteTarget(person);
+    else if (action === 'reset') { setResetTarget(person); setTempPassword(null); }
+    else if (action === 'email') window.open(`mailto:${person.email}`);
+  };
+
+  const handleDelete = async () => { if (!deleteTarget) return; await removeRegisteredPerson(deleteTarget.id); setDeleteTarget(null); };
+  const handleReset = async () => {
+    if (!resetTarget) return;
+    setResetLoading(true);
+    try {
+      // Find if user has an account
+      const user = registeredUsers.find(u => u.email === resetTarget.email);
+      if (user) { const r = await api.users.resetPassword(user.id); setTempPassword(r.temporaryPassword); }
+      else setTempPassword('(User has not created an account yet)');
+    } catch { setTempPassword('(Error resetting password)'); }
+    setResetLoading(false);
+  };
+
+  const handleBulkDelete = async () => {
+    for (const id of selected) await removeRegisteredPerson(id);
+    setSelected(new Set());
+  };
+
+  const handleAddUser = async (person: RegisteredPerson) => { await uploadPersons([person]); setShowAdd(false); };
+
+  const quickFilters: { key: QuickFilter; label: string; count?: number }[] = [
+    { key: 'all', label: 'All', count: registeredPersons.length },
+    { key: 'students', label: 'Students', count: stats.students },
+    { key: 'teachers', label: 'Faculty', count: stats.teachers },
+    { key: 'pending', label: 'Pending', count: stats.pendingVerification },
+    { key: 'verified', label: 'Verified', count: stats.verified },
+    { key: 'recent', label: 'Recent', count: stats.recentlyAdded },
+  ];
+
+  return (
+    <div className="um-page">
+      {/* Header */}
+      <div className="um-page__header">
+        <div className="um-page__header-left">
+          <h1>User Management</h1>
+          <p>{registeredPersons.length} users · {stats.verified} verified · {stats.pendingVerification} pending</p>
+        </div>
+        <div className="um-page__header-actions">
+          <button className="btn btn--outline btn--sm" onClick={downloadTemplate}><Download size={14}/> Template</button>
+          <button className="btn btn--outline btn--sm" onClick={exportCSV}><Download size={14}/> Export</button>
+          <button className="btn btn--outline btn--sm" onClick={() => { fileRef.current?.click(); }}><Upload size={14}/> Import</button>
+          <button className="btn btn--primary btn--sm" onClick={() => setShowAdd(true)}><UserPlus size={14}/> Add User</button>
+          <input ref={fileRef} type="file" accept=".csv,.xlsx" style={{display:'none'}} onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])}/>
+        </div>
+      </div>
+
+      {/* Metrics */}
+      <MetricsRow stats={stats}/>
+
+      {/* Bulk Actions */}
+      {selected.size > 0 && (
+        <div className="um-bulk-bar">
+          <span className="um-bulk-bar__count">{selected.size}</span> selected
+          <button onClick={handleBulkDelete}><Trash2 size={13}/> Delete</button>
+          <button onClick={() => setSelected(new Set())} className="um-bulk-bar__close"><X size={16}/></button>
+        </div>
+      )}
+
+      {/* Toolbar */}
+      <div className="um-toolbar">
+        <div className="um-toolbar__search">
+          <Search size={15}/>
+          <input placeholder="Search by name, email, or ID..." value={search} onChange={e => setSearch(e.target.value)}/>
+          {search && <button className="search-clear-btn" onClick={() => setSearch('')}><X size={11}/></button>}
+        </div>
+        <div className="um-toolbar__filters">
+          {quickFilters.map(f => (
+            <button key={f.key} className={`um-chip ${quickFilter === f.key ? 'um-chip--active' : ''}`} onClick={() => setQuickFilter(f.key)}>
+              {f.label} {f.count !== undefined && <span className="um-chip__count">{f.count}</span>}
+            </button>
+          ))}
+        </div>
+        <div className="um-toolbar__actions">
+          {departments.length > 0 && (
+            <select className="um-select" value={deptFilter} onChange={e => setDeptFilter(e.target.value)}>
+              <option value="">All Depts</option>
+              {departments.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+          )}
+        </div>
+      </div>
+
+      {/* Dropzone */}
+      <div className={`um-import-zone ${dragOver ? 'um-import-zone--active' : ''}`} style={{padding:'16px 24px',flexDirection:'row'}}
+        onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
+        onDrop={handleDrop} onClick={() => fileRef.current?.click()}>
+        <FileSpreadsheet size={22}/>
+        <div><strong>Drop CSV or XLSX</strong> to bulk import users</div>
+      </div>
+
+      {/* Import Result Banner */}
+      {importResult && !showImport && importResult.count > 0 && (
+        <div className="upload-result upload-result--success"><CheckCircle size={15}/> {importResult.count} records imported successfully</div>
+      )}
+
+      {/* Import Preview Modal */}
+      {showImport && previewData.length > 0 && (
+        <div className="upload-preview">
+          <div className="upload-preview__header">
+            <h3 style={{display:'flex',alignItems:'center',gap:8}}><ClipboardList size={17}/> Preview — {previewData.length} records</h3>
+            <div className="upload-preview__actions">
+              <button className="btn btn--outline btn--sm" onClick={() => { setShowImport(false); setPreviewData([]); }}>Cancel</button>
+              <button className="btn btn--primary btn--sm" onClick={confirmImport}><CheckCircle size={14}/> Confirm Import</button>
+            </div>
+          </div>
+          {importResult?.errors && importResult.errors.length > 0 && (
+            <div className="upload-preview__errors"><AlertCircle size={14}/><div>{importResult.errors.map((e, i) => <p key={i}>{e}</p>)}</div></div>
+          )}
+          <div className="upload-table-wrapper">
+            <table className="upload-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Department</th><th>ID</th></tr></thead>
+              <tbody>{previewData.map((p, i) => (
+                <tr key={i}><td>{p.name}</td><td>{p.email}</td><td><span className={`role-badge role-badge--${p.role}`}>{p.role}</span></td><td>{p.department}</td><td>{p.enrollmentNo || p.employeeId}</td></tr>
+              ))}</tbody></table>
+          </div>
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="um-table-wrap">
+        <UserTable data={paginated} selected={selected} onToggle={toggleSelect} onToggleAll={toggleAll} allSelected={allSelected} onAction={handleAction}/>
+        <Pagination page={page} totalPages={totalPages} total={filtered.length} perPage={ROWS_PER_PAGE} onChange={setPage}/>
+      </div>
+
+      {/* Modals */}
+      {showAdd && <AddUserModal departments={departments} onAdd={handleAddUser} onClose={() => setShowAdd(false)}/>}
+      {deleteTarget && <DeleteModal person={deleteTarget} onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)}/>}
+      {viewTarget && <ProfileDrawer person={viewTarget} onClose={() => setViewTarget(null)}/>}
+      {resetTarget && <ResetPasswordModal person={resetTarget} tempPassword={tempPassword} loading={resetLoading} onConfirm={handleReset} onClose={() => setResetTarget(null)}/>}
+    </div>
+  );
+};
+
+export default AdminUploadPage;
