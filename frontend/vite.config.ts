@@ -24,5 +24,8 @@ export default defineConfig(({ mode }) => {
       host: env.VITE_PREVIEW_HOST || '127.0.0.1',
       port: toPort(env.VITE_PREVIEW_PORT, 4173),
     },
+    build: {
+      cssMinify: false,
+    },
   };
 });

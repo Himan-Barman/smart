@@ -15,7 +15,10 @@
 .dp-hero__orb--1 { width: 300px; height: 300px; top: -100px; right: -50px; background: #3b6cf5; animation: floatOrb 8s ease-in-out infinite; }
 .dp-hero__orb--2 { width: 200px; height: 200px; bottom: -80px; left: -40px; background: #6c52e8; animation: floatOrb 10s ease-in-out infinite reverse; }
 .dp-hero__orb--3 { width: 160px; height: 160px; top: 20px; right: 30%; background: #c49520; animation: floatOrb 12s ease-in-out infinite; }
-@keyframes floatOrb { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-20px) scale(1.05); } }
+@keyframes floatOrb {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-20px) scale(1.05); }
+}
 
 .dp-hero__content { position: relative; z-index: 2; }
 .dp-hero__text h2 {

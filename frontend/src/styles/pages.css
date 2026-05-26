@@ -28,7 +28,10 @@
   background: radial-gradient(circle, rgba(91,140,255,0.04), transparent 70%);
   position: absolute; right: 0; top: 0; animation: float 6s ease-in-out infinite;
 }
-@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
 
 .dashboard__stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
 .dashboard__stat-card {
