@@ -179,6 +179,12 @@ export const api = {
         body: persons,
       });
     },
+    createRegisteredPerson(person: RegisteredPerson) {
+      return request<RegisteredPerson & { createdAt?: string; isVerified?: boolean }>('/users/registered-persons', {
+        method: 'POST',
+        body: person,
+      });
+    },
     removeRegisteredPerson(id: string) {
       return request<void>(`/users/registered-persons/${id}`, {
         method: 'DELETE',

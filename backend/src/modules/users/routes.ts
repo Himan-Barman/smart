@@ -173,7 +173,11 @@ userRouter.post(
       },
     });
 
-    res.status(201).json(serializer.registeredPerson(person));
+    res.status(201).json({
+      ...serializer.registeredPerson(person),
+      isVerified: false,
+      createdAt: person.createdAt.toISOString(),
+    });
   }),
 );
 
@@ -214,12 +218,29 @@ userRouter.patch(
       department: z.string().min(1).optional(),
       semester: z.number().int().positive().optional(),
       course: z.string().optional(),
+      subjects: z.array(z.string()).optional(),
       phone: z.string().optional(),
     }).parse(req.body);
 
-    const existing = await prisma.registeredPerson.findUnique({ where: { id } });
+    const existing = await prisma.registeredPerson.findUnique({
+      where: { id },
+      include: { user: { select: { id: true } } },
+    });
     if (!existing) {
       throw new HttpError(404, 'Person not found');
+    }
+
+    if (updates.email && updates.email.toLowerCase() !== existing.email) {
+      const duplicatePerson = await prisma.registeredPerson.findUnique({
+        where: { email: updates.email.toLowerCase() },
+      });
+      const duplicateUser = await prisma.user.findUnique({
+        where: { email: updates.email.toLowerCase() },
+      });
+
+      if (duplicatePerson || duplicateUser) {
+        throw new HttpError(409, 'Email already in use');
+      }
     }
 
     const updated = await prisma.registeredPerson.update({
@@ -230,10 +251,26 @@ userRouter.patch(
         ...(updates.department && { department: updates.department }),
         ...(updates.semester !== undefined && { semester: updates.semester }),
         ...(updates.course !== undefined && { course: updates.course }),
+        ...(updates.subjects !== undefined && { subjects: serializer.fromSubjectList(updates.subjects) }),
         ...(updates.phone !== undefined && { phone: updates.phone }),
       },
       include: { user: { select: { id: true } } },
     });
+
+    if (existing.user) {
+      await prisma.user.update({
+        where: { id: existing.user.id },
+        data: {
+          name: updated.name,
+          email: updated.email,
+          department: updated.department,
+          semester: updated.semester,
+          course: updated.course,
+          subjects: updated.subjects,
+          phone: updated.phone,
+        },
+      });
+    }
 
     res.json({
       ...serializer.registeredPerson(updated),

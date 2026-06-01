@@ -16,17 +16,18 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
    ═══════════════════════════════════════════════════════════ */
 const AdminDashboard: React.FC = () => {
   const { setCurrentPage, notices, bookings, grievances, attendanceSession } = useApp();
-  const { registeredPersons, registeredUsers } = useAuth();
+  const { registeredPersons } = useAuth();
 
   const studentCount = registeredPersons.filter(p => p.role === 'student').length;
   const teacherCount = registeredPersons.filter(p => p.role === 'teacher').length;
+  const verifiedCount = registeredPersons.filter(p => p.isVerified).length;
   const resolvedGrievances = grievances.filter(g => g.status === 'resolved').length;
 
   const statCards = [
-    { value: registeredPersons.length, label: 'Registered', icon: <Users size={22} />, color: '#3b6cf5', bg: 'rgba(59,108,245,0.08)', page: 'admin_upload' as PageType },
+    { value: registeredPersons.length, label: 'Added Users', icon: <Users size={22} />, color: '#3b6cf5', bg: 'rgba(59,108,245,0.08)', page: 'admin_upload' as PageType },
     { value: studentCount, label: 'Students', icon: <UserCheck size={22} />, color: '#1a9d5c', bg: 'rgba(26,157,92,0.07)', page: 'admin_upload' as PageType },
     { value: teacherCount, label: 'Faculty', icon: <BookOpen size={22} />, color: '#6c52e8', bg: 'rgba(108,82,232,0.07)', page: 'admin_upload' as PageType },
-    { value: registeredUsers.length, label: 'Active Users', icon: <Activity size={22} />, color: '#1596c4', bg: 'rgba(21,150,196,0.07)', page: 'admin_upload' as PageType },
+    { value: verifiedCount, label: 'Verified Users', icon: <Activity size={22} />, color: '#1596c4', bg: 'rgba(21,150,196,0.07)', page: 'admin_upload' as PageType },
     { value: notices.length, label: 'Notices', icon: <Megaphone size={22} />, color: '#d07a1a', bg: 'rgba(208,122,26,0.07)', page: 'notices' as PageType },
     { value: grievances.length, label: 'Grievances', icon: <Scale size={22} />, color: '#d94444', bg: 'rgba(217,68,68,0.06)', page: 'grievances' as PageType },
   ];
@@ -50,7 +51,7 @@ const AdminDashboard: React.FC = () => {
           <p>Manage users, monitor campus activity, and maintain operations.</p>
         </div>
         <div className="dash__welcome-metrics">
-          <div className="dash__metric"><span className="dash__metric-val">{registeredUsers.length}</span><span className="dash__metric-lbl">Users Online</span></div>
+          <div className="dash__metric"><span className="dash__metric-val">{verifiedCount}</span><span className="dash__metric-lbl">Verified Users</span></div>
           <div className="dash__metric-divider" />
           <div className="dash__metric"><span className="dash__metric-val">{Math.round((resolvedGrievances / (grievances.length || 1)) * 100)}%</span><span className="dash__metric-lbl">Issues Resolved</span></div>
           <div className="dash__metric-divider" />

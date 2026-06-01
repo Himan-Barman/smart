@@ -8,15 +8,17 @@ import {
 } from 'lucide-react';
 import type { UserStats } from './constants';
 
+const roleLabel = (role: UserRole): string => (role === 'teacher' ? 'Faculty' : 'Student');
+
 /* ── Metrics Row ── */
 export const MetricsRow: React.FC<{ stats: UserStats }> = ({ stats }) => {
   const items = [
-    { label: 'Total Users', val: stats.totalUsers, icon: <Users size={18}/>, cls: 'blue' },
+    { label: 'Added Users', val: stats.totalUsers, icon: <Users size={18}/>, cls: 'blue' },
     { label: 'Students', val: stats.students, icon: <GraduationCap size={18}/>, cls: 'green' },
-    { label: 'Teachers', val: stats.teachers, icon: <UserIcon size={18}/>, cls: 'purple' },
-    { label: 'Pending', val: stats.pendingVerification, icon: <Clock size={18}/>, cls: 'orange' },
-    { label: 'Verified', val: stats.verified, icon: <ShieldCheck size={18}/>, cls: 'green' },
-    { label: 'Registered', val: stats.registeredAccounts, icon: <UserPlus size={18}/>, cls: 'blue' },
+    { label: 'Faculty', val: stats.teachers, icon: <UserIcon size={18}/>, cls: 'purple' },
+    { label: 'Pending Signup', val: stats.pendingVerification, icon: <Clock size={18}/>, cls: 'orange' },
+    { label: 'Verified Accounts', val: stats.verified, icon: <ShieldCheck size={18}/>, cls: 'green' },
+    { label: 'Signed Up', val: stats.registeredAccounts, icon: <UserPlus size={18}/>, cls: 'blue' },
     { label: 'Recent (7d)', val: stats.recentlyAdded, icon: <Clock size={18}/>, cls: 'purple' },
     { label: 'Departments', val: stats.departmentCount, icon: <Building2 size={18}/>, cls: 'blue' },
   ];
@@ -67,7 +69,7 @@ export const UserTable: React.FC<TableProps> = ({ data, selected, onToggle, onTo
     <table className="um-table">
       <thead><tr>
         <th><input type="checkbox" className="um-checkbox" checked={allSelected} onChange={onToggleAll}/></th>
-        <th>User</th><th>Role</th><th>Department</th><th>Status</th><th>Verification</th><th>Registered</th><th>Actions</th>
+        <th>User</th><th>Role</th><th>Department</th><th>Account</th><th>Added On</th><th>Actions</th>
       </tr></thead>
       <tbody>
         {data.map(p => (
@@ -79,15 +81,14 @@ export const UserTable: React.FC<TableProps> = ({ data, selected, onToggle, onTo
                 <div><span className="um-user-cell__name">{p.name}</span><span className="um-user-cell__email">{p.email}</span></div>
               </div>
             </td>
-            <td><span className={`um-badge um-badge--${p.role}`}>{p.role}</span></td>
+            <td><span className={`um-badge um-badge--${p.role}`}>{roleLabel(p.role)}</span></td>
             <td style={{fontSize:'13px'}}>{p.department || '—'}</td>
-            <td><span className="um-badge um-badge--active">Active</span></td>
-            <td>{p.isVerified ? <span className="um-badge um-badge--verified"><CheckCircle size={11}/> Verified</span> : <span className="um-badge um-badge--pending"><Clock size={11}/> Pending</span>}</td>
+            <td>{p.isVerified ? <span className="um-badge um-badge--verified"><CheckCircle size={11}/> Verified</span> : <span className="um-badge um-badge--pending"><Clock size={11}/> Pending Signup</span>}</td>
             <td style={{fontSize:'12px',color:'var(--text-muted)'}}>{formatDate(p.createdAt)}</td>
             <td><ActionMenu person={p} onAction={onAction}/></td>
           </tr>
         ))}
-        {data.length === 0 && <tr><td colSpan={8} style={{textAlign:'center',padding:'40px',color:'var(--text-muted)'}}>No users found</td></tr>}
+        {data.length === 0 && <tr><td colSpan={7} style={{textAlign:'center',padding:'40px',color:'var(--text-muted)'}}>No users found</td></tr>}
       </tbody>
     </table>
   </div>
@@ -125,8 +126,8 @@ export const ProfileDrawer: React.FC<{ person: RegisteredPerson; onClose: () => 
         <div className="um-profile-drawer__name">{person.name}</div>
         <div className="um-profile-drawer__email">{person.email}</div>
         <div style={{display:'flex',justifyContent:'center',gap:8,marginBottom:20}}>
-          <span className={`um-badge um-badge--${person.role}`}>{person.role}</span>
-          {person.isVerified ? <span className="um-badge um-badge--verified"><CheckCircle size={11}/> Verified</span> : <span className="um-badge um-badge--pending">Pending</span>}
+          <span className={`um-badge um-badge--${person.role}`}>{roleLabel(person.role)}</span>
+          {person.isVerified ? <span className="um-badge um-badge--verified"><CheckCircle size={11}/> Verified</span> : <span className="um-badge um-badge--pending">Pending Signup</span>}
         </div>
         <div className="um-profile-drawer__section">
           <h4>Details</h4>
@@ -135,7 +136,7 @@ export const ProfileDrawer: React.FC<{ person: RegisteredPerson; onClose: () => 
           {person.semester && <div className="um-profile-detail"><span className="um-profile-detail__label">Semester</span><span className="um-profile-detail__value">{person.semester}</span></div>}
           {person.course && <div className="um-profile-detail"><span className="um-profile-detail__label">Course</span><span className="um-profile-detail__value">{person.course}</span></div>}
           {person.phone && <div className="um-profile-detail"><span className="um-profile-detail__label">Phone</span><span className="um-profile-detail__value">{person.phone}</span></div>}
-          <div className="um-profile-detail"><span className="um-profile-detail__label">Registered</span><span className="um-profile-detail__value">{formatDate(person.createdAt)}</span></div>
+          <div className="um-profile-detail"><span className="um-profile-detail__label">Added On</span><span className="um-profile-detail__value">{formatDate(person.createdAt)}</span></div>
         </div>
       </div>
     </div>
@@ -149,7 +150,7 @@ export const DeleteModal: React.FC<{ person: RegisteredPerson; onConfirm: () => 
       <div className="modal__header modal__header--danger"><h3><AlertTriangle size={18}/> Delete User</h3><button className="modal__close" onClick={onCancel}><X size={18}/></button></div>
       <div className="modal__body">
         <p>Remove <strong>{person.name}</strong> ({person.email})?</p>
-        <p className="delete-warning">{person.isVerified ? '⚠️ This user has signed up. Only the registration record will be removed.' : 'This user will no longer be able to create an account.'}</p>
+        <p className="delete-warning">{person.isVerified ? 'This verified account and its admin-added user record will be removed.' : 'This pending user will no longer be able to create an account.'}</p>
       </div>
       <div className="modal__actions"><button className="btn btn--outline" onClick={onCancel}>Cancel</button><button className="btn btn--danger" onClick={onConfirm}><Trash2 size={14}/> Delete</button></div>
     </div>
@@ -157,38 +158,69 @@ export const DeleteModal: React.FC<{ person: RegisteredPerson; onConfirm: () => 
 );
 
 /* ── Add User Modal ── */
-export const AddUserModal: React.FC<{ departments: string[]; onAdd: (p: RegisteredPerson) => void; onClose: () => void }> = ({ departments, onAdd, onClose }) => {
-  const [f, setF] = useState({ name:'', email:'', role:'student' as UserRole, department:'', identifier:'', semester:'', course:'', phone:'', subjects:'' });
+export const AddUserModal: React.FC<{
+  departments: string[];
+  onSubmit: (p: RegisteredPerson) => void;
+  onClose: () => void;
+  initialPerson?: RegisteredPerson | null;
+  error?: string;
+  saving?: boolean;
+}> = ({ departments, onSubmit, onClose, initialPerson, error, saving }) => {
+  const isEdit = Boolean(initialPerson);
+  const [f, setF] = useState({
+    name: initialPerson?.name ?? '',
+    email: initialPerson?.email ?? '',
+    role: initialPerson?.role ?? 'student' as UserRole,
+    department: initialPerson?.department ?? '',
+    identifier: initialPerson?.enrollmentNo ?? initialPerson?.employeeId ?? initialPerson?.id ?? '',
+    semester: initialPerson?.semester ? String(initialPerson.semester) : '',
+    course: initialPerson?.course ?? '',
+    phone: initialPerson?.phone ?? '',
+    subjects: initialPerson?.subjects?.join(', ') ?? '',
+  });
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    const identifier = f.identifier.trim();
     const person: RegisteredPerson = {
-      id: f.identifier, name: f.name, email: f.email, role: f.role, department: f.department, phone: f.phone || undefined,
-      ...(f.role === 'student' ? { enrollmentNo: f.identifier, semester: parseInt(f.semester) || undefined, course: f.course || undefined }
-        : { employeeId: f.identifier, subjects: f.subjects ? f.subjects.split(',').map(s => s.trim()) : undefined }),
+      id: initialPerson?.id ?? identifier,
+      name: f.name.trim(),
+      email: f.email.trim().toLowerCase(),
+      role: f.role,
+      department: f.department.trim(),
+      phone: f.phone.trim() || undefined,
+      ...(f.role === 'student' ? {
+        enrollmentNo: initialPerson?.enrollmentNo ?? identifier,
+        semester: parseInt(f.semester) || undefined,
+        course: f.course.trim() || undefined,
+      } : {
+        employeeId: initialPerson?.employeeId ?? identifier,
+        subjects: f.subjects ? f.subjects.split(',').map(s => s.trim()).filter(Boolean) : undefined,
+      }),
     };
-    onAdd(person);
+    onSubmit(person);
   };
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
-        <div className="modal__header"><h3>Add User</h3><button className="modal__close" onClick={onClose}><X size={18}/></button></div>
+        <div className="modal__header"><h3>{isEdit ? 'Edit User' : 'Add User'}</h3><button className="modal__close" onClick={onClose}><X size={18}/></button></div>
         <form className="modal__form" onSubmit={submit}>
+          {error && <div className="auth-err">{error}</div>}
           <div className="form-row">
             <div className="form-group"><label>Full Name</label><input required value={f.name} onChange={e => setF(v=>({...v,name:e.target.value}))}/></div>
             <div className="form-group"><label>Email</label><input type="email" required value={f.email} onChange={e => setF(v=>({...v,email:e.target.value}))}/></div>
           </div>
           <div className="form-row">
-            <div className="form-group"><label>Role</label><select value={f.role} onChange={e => setF(v=>({...v,role:e.target.value as UserRole}))}><option value="student">Student</option><option value="teacher">Teacher</option></select></div>
+            <div className="form-group"><label>Role</label><select value={f.role} disabled={isEdit} onChange={e => setF(v=>({...v,role:e.target.value as UserRole}))}><option value="student">Student</option><option value="teacher">Faculty</option></select></div>
             <div className="form-group"><label>Department</label>
-              {departments.length > 0 ? <select value={f.department} onChange={e => setF(v=>({...v,department:e.target.value}))} required><option value="">Select...</option>{departments.map(d=><option key={d} value={d}>{d}</option>)}</select>
-              : <input required value={f.department} onChange={e => setF(v=>({...v,department:e.target.value}))}/>}
+              <input required list="um-departments" value={f.department} onChange={e => setF(v=>({...v,department:e.target.value}))}/>
+              <datalist id="um-departments">{departments.map(d=><option key={d} value={d}/>)}</datalist>
             </div>
           </div>
-          <div className="form-group"><label>{f.role==='student'?'Enrollment No':'Employee ID'}</label><input required value={f.identifier} onChange={e => setF(v=>({...v,identifier:e.target.value}))}/></div>
+          <div className="form-group"><label>{f.role==='student'?'Enrollment No':'Employee ID'}</label><input required disabled={isEdit} pattern="\d{12}" title="Use the 12-digit university ID used during signup" value={f.identifier} onChange={e => setF(v=>({...v,identifier:e.target.value.replace(/\D/g, '').slice(0, 12)}))}/></div>
           {f.role==='student' && <div className="form-row"><div className="form-group"><label>Semester</label><input type="number" min="1" max="8" value={f.semester} onChange={e => setF(v=>({...v,semester:e.target.value}))}/></div><div className="form-group"><label>Course</label><input value={f.course} onChange={e => setF(v=>({...v,course:e.target.value}))}/></div></div>}
           {f.role==='teacher' && <div className="form-group"><label>Subjects (comma-separated)</label><input value={f.subjects} onChange={e => setF(v=>({...v,subjects:e.target.value}))}/></div>}
           <div className="form-group"><label>Phone</label><input value={f.phone} onChange={e => setF(v=>({...v,phone:e.target.value}))}/></div>
-          <button type="submit" className="btn btn--primary btn--full"><UserPlus size={16}/> Add User</button>
+          <button type="submit" className="btn btn--primary btn--full" disabled={saving}><UserPlus size={16}/> {saving ? 'Saving...' : isEdit ? 'Save User' : 'Add User'}</button>
         </form>
       </div>
     </div>
