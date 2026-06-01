@@ -21,6 +21,7 @@ interface AuthContextType {
   completeSignup: (password: string) => Promise<{ success: boolean; message: string }>;
   resendOTP: () => Promise<void>;
   logout: () => void;
+  logoutAllDevices: () => Promise<{ success: boolean; revokedSessions: number }>;
   setAuthStep: (step: AuthStep) => void;
   setCurrentUser: (user: User) => void;
   updateProfile: (updates: { name?: string; email?: string; phone?: string }) => Promise<User>;
@@ -49,7 +50,7 @@ const accountToRegisteredPerson = (user: User): RegisteredPerson => ({
 });
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [authStep, setAuthStep] = useState<AuthStep>('login');
+  const [authStep, setAuthStep] = useState<AuthStep>('loading');
   const [currentUser, setCurrentUserState] = useState<User | null>(null);
   const [registeredPersons, setRegisteredPersons] = useState<RegisteredPerson[]>([]);
   const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
@@ -97,10 +98,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   useEffect(() => {
     const init = async () => {
-      const token = tokenStore.get();
-      if (!token) return;
-
       try {
+        await api.auth.refresh();
         const me = await api.auth.me();
         setCurrentUserState(me.user);
         setAuthStep('authenticated');
@@ -110,6 +109,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       } catch {
         tokenStore.clear();
+        setAuthStep('login');
       }
     };
 
@@ -119,7 +119,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const login = useCallback(async (email: string, password: string) => {
     try {
       const response = await api.auth.login({ email, password });
-      tokenStore.set(response.token);
+      tokenStore.set(response.accessToken);
       setCurrentUserState(response.user);
       setAuthStep('authenticated');
 
@@ -180,7 +180,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       const response = await api.auth.verifySignup({ email: otpEmail, code: verifiedOtpCode, password });
-      tokenStore.set(response.token);
+      tokenStore.set(response.accessToken);
       setCurrentUserState(response.user);
       setPendingSignup(null);
       setOtpEmail('');
@@ -211,6 +211,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [otpEmail]);
 
   const logout = useCallback(() => {
+    void api.auth.logout().catch(() => {});
     tokenStore.clear();
     setCurrentUserState(null);
     setRegisteredPersons([]);
@@ -219,6 +220,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setOtpEmail('');
     setPendingSignup(null);
     setVerifiedOtpCode('');
+  }, []);
+
+  const logoutAllDevices = useCallback(async () => {
+    const result = await api.auth.logoutAll();
+    tokenStore.clear();
+    setCurrentUserState(null);
+    setRegisteredPersons([]);
+    setRegisteredUsers([]);
+    setAuthStep('login');
+    setOtpEmail('');
+    setPendingSignup(null);
+    setVerifiedOtpCode('');
+    return result;
   }, []);
 
   const uploadPersons = useCallback(async (persons: RegisteredPerson[]) => {
@@ -263,6 +277,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         completeSignup,
         resendOTP,
         logout,
+        logoutAllDevices,
         setAuthStep,
         setCurrentUser,
         updateProfile,

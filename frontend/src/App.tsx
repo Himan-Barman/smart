@@ -174,6 +174,8 @@ const AuthRouter: React.FC = () => {
   const { authStep } = useAuth();
 
   switch (authStep) {
+    case 'loading':
+      return <div className="auth-page" />;
     case 'login':
       return <LoginPage />;
     case 'signup':

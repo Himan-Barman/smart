@@ -14,8 +14,18 @@ services:
           property: connectionString
       - key: JWT_SECRET
         generateValue: true
-      - key: JWT_EXPIRES_IN
-        value: 8h
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 60d
+      - key: REFRESH_TOKEN_COOKIE_NAME
+        value: smart-campus-refresh
+      - key: REFRESH_COOKIE_SAME_SITE
+        value: none
       - key: CORS_ORIGIN
         value: "*"
       - key: SERVE_FRONTEND

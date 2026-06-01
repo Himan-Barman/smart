@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Mail, Phone, Building2, Hash, BookOpen, User as UserIcon, Shield, Briefcase, Edit2, Check, Star, Award } from 'lucide-react';
+import { Mail, Phone, Building2, Hash, BookOpen, User as UserIcon, Shield, Briefcase, Edit2, Check, Star, Award, LogOut } from 'lucide-react';
 
 const ProfilePage: React.FC = () => {
-  const { currentUser, updateProfile } = useAuth();
+  const { currentUser, updateProfile, logoutAllDevices } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
+  const [sessionActionLoading, setSessionActionLoading] = useState(false);
   const [editData, setEditData] = useState({
     name: currentUser?.name || '',
     phone: currentUser?.phone || '+1 (555) 000-0000',
@@ -39,6 +40,15 @@ const ProfilePage: React.FC = () => {
     setIsEditing(false);
   };
 
+  const handleLogoutAllDevices = async () => {
+    setSessionActionLoading(true);
+    try {
+      await logoutAllDevices();
+    } finally {
+      setSessionActionLoading(false);
+    }
+  };
+
   return (
     <div className="page">
       <div className="page__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -46,12 +56,21 @@ const ProfilePage: React.FC = () => {
           <h2 className="page__title">User Profile</h2>
           <p className="page__subtitle">Manage your personal information and preferences.</p>
         </div>
-        <button 
-          className={`btn ${isEditing ? 'btn--primary' : 'btn--outline'}`} 
-          onClick={isEditing ? handleSave : () => setIsEditing(true)}
-        >
-          {isEditing ? <><Check size={16} /> Save Changes</> : <><Edit2 size={16} /> Edit Profile</>}
-        </button>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button
+            className="btn btn--outline"
+            onClick={handleLogoutAllDevices}
+            disabled={sessionActionLoading}
+          >
+            <LogOut size={16} /> Logout All Devices
+          </button>
+          <button
+            className={`btn ${isEditing ? 'btn--primary' : 'btn--outline'}`}
+            onClick={isEditing ? handleSave : () => setIsEditing(true)}
+          >
+            {isEditing ? <><Check size={16} /> Save Changes</> : <><Edit2 size={16} /> Edit Profile</>}
+          </button>
+        </div>
       </div>
 
       <div className="profile-layout" style={{ display: 'grid', gap: '24px', gridTemplateColumns: 'minmax(300px, 1fr) 2fr', alignItems: 'start' }}>

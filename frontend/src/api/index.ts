@@ -16,19 +16,20 @@ import type {
 const API_BASE_URL =
   ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api/v1').replace(/\/$/, '');
 
-const TOKEN_KEY = 'smart-campus-token';
-
 const buildUrl = (path: string): string => `${API_BASE_URL}${path}`;
+
+let accessToken: string | null = null;
+let refreshInFlight: Promise<{ accessToken: string; user: User }> | null = null;
 
 export const tokenStore = {
   get(): string | null {
-    return localStorage.getItem(TOKEN_KEY);
+    return accessToken;
   },
   set(token: string): void {
-    localStorage.setItem(TOKEN_KEY, token);
+    accessToken = token;
   },
   clear(): void {
-    localStorage.removeItem(TOKEN_KEY);
+    accessToken = null;
   },
 };
 
@@ -36,27 +37,10 @@ type RequestOptions = {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;
   auth?: boolean;
+  retryOnUnauthorized?: boolean;
 };
 
-const request = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
-  const { method = 'GET', body, auth = true } = options;
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-
-  if (auth) {
-    const token = tokenStore.get();
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-  }
-
-  const response = await fetch(buildUrl(path), {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
+const parseResponse = async <T>(response: Response): Promise<T> => {
   if (!response.ok) {
     let message = 'Request failed';
     try {
@@ -73,6 +57,62 @@ const request = async <T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   return (await response.json()) as T;
+};
+
+const send = async (path: string, options: RequestOptions = {}): Promise<Response> => {
+  const { method = 'GET', body, auth = true } = options;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (auth) {
+    const currentAccessToken = tokenStore.get();
+    if (currentAccessToken) {
+      headers.Authorization = `Bearer ${currentAccessToken}`;
+    }
+  }
+
+  return fetch(buildUrl(path), {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+    credentials: 'include',
+  });
+};
+
+export const refreshAccessToken = async (): Promise<{ accessToken: string; user: User }> => {
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      const response = await send('/auth/refresh', {
+        method: 'POST',
+        auth: false,
+        retryOnUnauthorized: false,
+      });
+      const data = await parseResponse<{ success: boolean; accessToken: string; user: User }>(response);
+      tokenStore.set(data.accessToken);
+      return { accessToken: data.accessToken, user: data.user };
+    })().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+
+  return refreshInFlight;
+};
+
+const request = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
+  const retryOnUnauthorized = options.retryOnUnauthorized ?? true;
+  let response = await send(path, options);
+
+  if (response.status === 401 && options.auth !== false && retryOnUnauthorized && path !== '/auth/refresh') {
+    try {
+      await refreshAccessToken();
+      response = await send(path, { ...options, retryOnUnauthorized: false });
+    } catch {
+      tokenStore.clear();
+    }
+  }
+
+  return parseResponse<T>(response);
 };
 
 export type BootstrapResponse = {
@@ -105,7 +145,7 @@ export type BootstrapResponse = {
 export const api = {
   auth: {
     login(payload: { email: string; password: string }) {
-      return request<{ success: boolean; message: string; token: string; user: User }>('/auth/login', {
+      return request<{ success: boolean; message: string; accessToken: string; user: User }>('/auth/login', {
         method: 'POST',
         body: payload,
         auth: false,
@@ -131,7 +171,7 @@ export const api = {
       });
     },
     verifySignup(payload: { email: string; code: string; password: string }) {
-      return request<{ success: boolean; message: string; token: string; user: User }>('/auth/signup/verify', {
+      return request<{ success: boolean; message: string; accessToken: string; user: User }>('/auth/signup/verify', {
         method: 'POST',
         body: payload,
         auth: false,
@@ -146,6 +186,21 @@ export const api = {
     },
     me() {
       return request<{ user: User }>('/auth/me');
+    },
+    refresh() {
+      return refreshAccessToken();
+    },
+    logout() {
+      return request<{ success: boolean; message: string }>('/auth/logout', {
+        method: 'POST',
+        auth: false,
+        retryOnUnauthorized: false,
+      });
+    },
+    logoutAll() {
+      return request<{ success: boolean; revokedSessions: number }>('/auth/logout-all', {
+        method: 'POST',
+      });
     },
   },
 
