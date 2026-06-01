@@ -2,6 +2,7 @@ import type {
   AttendanceSession,
   Booking,
   Department,
+  DepartmentPayload,
   Feedback,
   Grievance,
   Notice,
@@ -290,10 +291,10 @@ export const api = {
   },
 
   departments: {
-    create(payload: Omit<Department, 'id' | 'semesters'>) {
+    create(payload: DepartmentPayload) {
       return request<Department[]>('/departments', { method: 'POST', body: payload });
     },
-    update(id: string, payload: Partial<Department>) {
+    update(id: string, payload: Partial<DepartmentPayload>) {
       return request<Department[]>(`/departments/${id}`, { method: 'PATCH', body: payload });
     },
     remove(id: string) {

@@ -9,6 +9,7 @@ import type {
   AttendanceSession,
   ScheduleSlot,
   Department,
+  DepartmentPayload,
   DepartmentSubject,
   PageType,
 } from '../types';
@@ -57,9 +58,9 @@ interface AppState {
   deleteScheduleSlot: (id: string) => void;
 
   departments: Department[];
-  addDepartment: (dept: Omit<Department, 'id' | 'semesters'>) => void;
-  updateDepartment: (id: string, updates: Partial<Department>) => void;
-  deleteDepartment: (id: string) => void;
+  addDepartment: (dept: DepartmentPayload) => Promise<void>;
+  updateDepartment: (id: string, updates: Partial<DepartmentPayload>) => Promise<void>;
+  deleteDepartment: (id: string) => Promise<void>;
   addSubjectToDept: (deptId: string, semester: number, subject: Omit<DepartmentSubject, 'id'>) => void;
   removeSubjectFromDept: (deptId: string, semester: number, subjectId: string) => void;
 
@@ -292,28 +293,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     void api.schedule.remove(id);
   }, []);
 
-  const addDepartment = useCallback((dept: Omit<Department, 'id' | 'semesters'>) => {
-    void api.departments.create(dept).then((nextDepartments) => {
-      setDepartments(nextDepartments);
-    });
+  const addDepartment = useCallback(async (dept: DepartmentPayload) => {
+    const nextDepartments = await api.departments.create(dept);
+    setDepartments(nextDepartments);
   }, []);
 
-  const updateDepartment = useCallback((id: string, updates: Partial<Department>) => {
-    void api.departments.update(id, updates).then((nextDepartments) => {
-      setDepartments(nextDepartments);
-    });
+  const updateDepartment = useCallback(async (id: string, updates: Partial<DepartmentPayload>) => {
+    const nextDepartments = await api.departments.update(id, updates);
+    setDepartments(nextDepartments);
   }, []);
 
-  const deleteDepartment = useCallback((id: string) => {
-    void api.departments.remove(id)
-      .then(() => {
-        setDepartments((prev) => prev.filter((department) => department.id !== id));
-      })
-      .catch((error) => {
-        window.alert(error instanceof Error ? error.message : 'Unable to delete department');
-        void refreshAppData();
-      });
-  }, [refreshAppData]);
+  const deleteDepartment = useCallback(async (id: string) => {
+    await api.departments.remove(id);
+    setDepartments((prev) => prev.filter((department) => department.id !== id));
+  }, []);
 
   const addSubjectToDept = useCallback((deptId: string, semester: number, subject: Omit<DepartmentSubject, 'id'>) => {
     void api.departments.addSubject(deptId, semester, subject).then((nextDepartments) => {

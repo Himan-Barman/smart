@@ -181,6 +181,13 @@ export interface Department {
   semesters: DepartmentSemester[];
 }
 
+export type DepartmentPayload = Omit<Department, 'id' | 'semesters'> & {
+  semesters?: Array<{
+    semester: number;
+    subjects: Array<Omit<DepartmentSubject, 'id'> & { id?: string }>;
+  }>;
+};
+
 export type PageType =
   | 'dashboard'
   | 'notices'
