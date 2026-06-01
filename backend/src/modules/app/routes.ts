@@ -27,6 +27,35 @@ const safeBootstrapQuery = async <T>(
   }
 };
 
+const serializeBootstrapList = <T, U>(
+  label: string,
+  items: T[],
+  serialize: (item: T) => U,
+): U[] =>
+  items.flatMap((item) => {
+    try {
+      return [serialize(item)];
+    } catch (error) {
+      console.error(`Bootstrap ${label} serialization failed`, error);
+      return [];
+    }
+  });
+
+const serializeBootstrapValue = <T, U>(
+  label: string,
+  item: T | null,
+  serialize: (item: T) => U,
+): U | null => {
+  if (!item) return null;
+
+  try {
+    return serialize(item);
+  } catch (error) {
+    console.error(`Bootstrap ${label} serialization failed`, error);
+    return null;
+  }
+};
+
 appDataRouter.get(
   '/bootstrap',
   asyncHandler(async (req, res) => {
@@ -110,17 +139,21 @@ appDataRouter.get(
     );
 
     res.json({
-      notices: notices.map((notice) => serializer.notice(notice)),
-      feedbacks: feedbacks.map((feedback) => serializer.feedback(feedback)),
-      userSkills: skills.map((skill) => serializer.skill(skill)),
-      internships: internships.map((internship) => serializer.internship(internship)),
-      rooms: rooms.map((room) => serializer.room(room)),
-      bookings: bookings.map((booking) => serializer.booking(booking)),
-      grievances: grievances.map((grievance) => serializer.grievance(grievance)),
-      attendanceSession: activeSession ? serializer.attendanceSession(activeSession, activeSession.attendees) : null,
-      schedule: schedule.map((slot) => serializer.schedule(slot)),
-      departments: departments.map((department) => serializer.department(department)),
-      notifications: notifications.map((notification) => serializer.notification(notification)),
+      notices: serializeBootstrapList('notices', notices, (notice) => serializer.notice(notice)),
+      feedbacks: serializeBootstrapList('feedbacks', feedbacks, (feedback) => serializer.feedback(feedback)),
+      userSkills: serializeBootstrapList('skills', skills, (skill) => serializer.skill(skill)),
+      internships: serializeBootstrapList('internships', internships, (internship) => serializer.internship(internship)),
+      rooms: serializeBootstrapList('rooms', rooms, (room) => serializer.room(room)),
+      bookings: serializeBootstrapList('bookings', bookings, (booking) => serializer.booking(booking)),
+      grievances: serializeBootstrapList('grievances', grievances, (grievance) => serializer.grievance(grievance)),
+      attendanceSession: serializeBootstrapValue(
+        'active attendance session',
+        activeSession,
+        (session) => serializer.attendanceSession(session, session.attendees),
+      ),
+      schedule: serializeBootstrapList('schedule', schedule, (slot) => serializer.schedule(slot)),
+      departments: serializeBootstrapList('departments', departments, (department) => serializer.department(department)),
+      notifications: serializeBootstrapList('notifications', notifications, (notification) => serializer.notification(notification)),
       registeredPersons: managedUserData.managedPersons,
       registeredUsers: managedUserData.users.map((user) => serializer.user(user)),
     });

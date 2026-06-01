@@ -1,4 +1,11 @@
-const toIsoDate = (value: Date): string => value.toISOString().split('T')[0] ?? '';
+const toIsoDate = (value: Date | string | null | undefined): string => {
+  if (!value) return '';
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  return date.toISOString().split('T')[0] ?? '';
+};
 
 const mapValue = (value: string, map: Record<string, string>, fallback: string): string =>
   map[value] ?? map[value.toUpperCase()] ?? fallback;
