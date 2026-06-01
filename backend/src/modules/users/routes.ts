@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import type { RegisteredPerson, User } from '@prisma/client';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { HttpError } from '../../lib/errors.js';
 import { mapper } from '../../lib/mappers.js';
@@ -68,49 +69,85 @@ const assertSemesterAllowed = (semester: number | undefined, department: Managed
   }
 };
 
+const nonAdminRoleFilter = { notIn: ['ADMIN', 'admin'] };
+
+const isSameIdentity = (person: RegisteredPerson, user: User): boolean => {
+  const personEmail = person.email.toLowerCase();
+  const userEmail = user.email.toLowerCase();
+  return (
+    person.id === user.id ||
+    personEmail === userEmail ||
+    Boolean(person.enrollmentNo && person.enrollmentNo === user.enrollmentNo) ||
+    Boolean(person.employeeId && person.employeeId === user.employeeId)
+  );
+};
+
+const serializeAccountAsManagedPerson = (user: User) => ({
+  ...serializer.user(user),
+  isVerified: true,
+  createdAt: user.createdAt.toISOString(),
+});
+
+const getManagedUserData = async () => {
+  const [persons, users] = await Promise.all([
+    prisma.registeredPerson.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { user: true },
+    }),
+    prisma.user.findMany({
+      where: { role: nonAdminRoleFilter },
+      orderBy: { createdAt: 'desc' },
+    }),
+  ]);
+
+  const matchedUserIds = new Set<string>();
+  const managedPersons = persons.map((person) => {
+    const account = person.user ?? users.find((user) => isSameIdentity(person, user)) ?? null;
+    if (account) matchedUserIds.add(account.id);
+
+    return {
+      ...serializer.registeredPerson(person),
+      isVerified: account !== null,
+      createdAt: person.createdAt.toISOString(),
+    };
+  });
+
+  const orphanAccounts = users
+    .filter((user) => !matchedUserIds.has(user.id))
+    .map((user) => serializeAccountAsManagedPerson(user));
+
+  return {
+    managedPersons: [...managedPersons, ...orphanAccounts].sort((a, b) =>
+      new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime(),
+    ),
+    users,
+  };
+};
+
 /* ── Stats endpoint for dashboard metrics ── */
 userRouter.get(
   '/stats',
   requireRole('admin'),
   asyncHandler(async (_req, res) => {
-    const [
-      totalPersons,
-      totalUsers,
-      students,
-      teachers,
-      verifiedCount,
-      departmentCount,
-      recentlyAdded,
-    ] = await Promise.all([
-      prisma.registeredPerson.count(),
-      prisma.user.count({ where: { role: { not: 'ADMIN' } } }),
-      prisma.registeredPerson.count({ where: { role: 'STUDENT' } }),
-      prisma.registeredPerson.count({ where: { role: 'TEACHER' } }),
-      // Count persons that have a linked user (verified)
-      prisma.registeredPerson.count({
-        where: { user: { isNot: null } },
-      }),
-      // Count departments managed from the Departments page.
+    const [{ managedPersons, users }, departmentCount] = await Promise.all([
+      getManagedUserData(),
       prisma.department.count(),
-      // Recently added (last 7 days)
-      prisma.registeredPerson.count({
-        where: {
-          createdAt: {
-            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-          },
-        },
-      }),
     ]);
 
+    const recentlyAddedThreshold = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const verifiedCount = managedPersons.filter((person) => person.isVerified).length;
+
     res.json({
-      totalUsers: totalPersons,
-      registeredAccounts: totalUsers,
-      students,
-      teachers,
+      totalUsers: managedPersons.length,
+      registeredAccounts: users.length,
+      students: managedPersons.filter((person) => person.role === 'student').length,
+      teachers: managedPersons.filter((person) => person.role === 'teacher').length,
       verified: verifiedCount,
-      pendingVerification: totalPersons - verifiedCount,
+      pendingVerification: managedPersons.length - verifiedCount,
       departmentCount,
-      recentlyAdded,
+      recentlyAdded: managedPersons.filter((person) =>
+        person.createdAt && new Date(person.createdAt).getTime() >= recentlyAddedThreshold,
+      ).length,
     });
   }),
 );
@@ -119,15 +156,8 @@ userRouter.get(
   '/registered-persons',
   requireRole('admin'),
   asyncHandler(async (_req, res) => {
-    const persons = await prisma.registeredPerson.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: { user: { select: { id: true } } },
-    });
-    res.json(persons.map((person) => ({
-      ...serializer.registeredPerson(person),
-      isVerified: person.user !== null,
-      createdAt: person.createdAt.toISOString(),
-    })));
+    const { managedPersons } = await getManagedUserData();
+    res.json(managedPersons);
   }),
 );
 
@@ -267,7 +297,8 @@ userRouter.delete(
 
     const existing = await prisma.registeredPerson.findUnique({ where: { id } });
     if (!existing) {
-      throw new HttpError(404, 'Registered person not found');
+      res.status(204).send();
+      return;
     }
 
     await prisma.registeredPerson.delete({ where: { id } });
@@ -279,7 +310,10 @@ userRouter.get(
   '/accounts',
   requireRole('admin'),
   asyncHandler(async (_req, res) => {
-    const users = await prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
+    const users = await prisma.user.findMany({
+      where: { role: nonAdminRoleFilter },
+      orderBy: { createdAt: 'desc' },
+    });
     res.json(users.map((user) => serializer.user(user)));
   }),
 );
@@ -305,7 +339,56 @@ userRouter.patch(
       include: { user: { select: { id: true } } },
     });
     if (!existing) {
-      throw new HttpError(404, 'Person not found');
+      const user = await prisma.user.findFirst({ where: { id, role: nonAdminRoleFilter } });
+      if (!user) {
+        throw new HttpError(404, 'Person not found');
+      }
+
+      if (updates.email && updates.email.toLowerCase() !== user.email.toLowerCase()) {
+        const duplicatePerson = await prisma.registeredPerson.findUnique({
+          where: { email: updates.email.toLowerCase() },
+        });
+        const duplicateUser = await prisma.user.findUnique({
+          where: { email: updates.email.toLowerCase() },
+        });
+
+        if (duplicatePerson || duplicateUser) {
+          throw new HttpError(409, 'Email already in use');
+        }
+      }
+
+      const role = mapper.roleToClient(user.role);
+      const department = updates.department ? await resolveManagedDepartment(updates.department) : null;
+      let syncedCourse: string | undefined;
+      if (role === 'student') {
+        const activeDepartment = department ?? (
+          updates.semester !== undefined || updates.course !== undefined
+            ? await resolveManagedDepartment(user.department)
+            : null
+        );
+        if (activeDepartment) {
+          assertSemesterAllowed(updates.semester ?? user.semester ?? undefined, activeDepartment);
+          syncedCourse = activeDepartment.course;
+        }
+      } else if (updates.course !== undefined) {
+        syncedCourse = updates.course;
+      }
+
+      const updatedUser = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          ...(updates.name && { name: updates.name }),
+          ...(updates.email && { email: updates.email.toLowerCase() }),
+          ...(department && { department: department.name }),
+          ...(updates.semester !== undefined && { semester: updates.semester }),
+          ...(syncedCourse !== undefined && { course: syncedCourse }),
+          ...(updates.subjects !== undefined && { subjects: serializer.fromSubjectList(updates.subjects) }),
+          ...(updates.phone !== undefined && { phone: updates.phone }),
+        },
+      });
+
+      res.json(serializeAccountAsManagedPerson(updatedUser));
+      return;
     }
 
     if (updates.email && updates.email.toLowerCase() !== existing.email) {
@@ -384,7 +467,7 @@ userRouter.delete(
     if (!user) {
       throw new HttpError(404, 'User account not found');
     }
-    if (user.role === 'ADMIN') {
+    if (mapper.roleToClient(user.role) === 'admin') {
       throw new HttpError(403, 'Cannot delete admin accounts');
     }
     await prisma.user.delete({ where: { id } });

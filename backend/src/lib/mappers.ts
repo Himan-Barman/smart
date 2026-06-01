@@ -1,6 +1,7 @@
 const toIsoDate = (value: Date): string => value.toISOString().split('T')[0] ?? '';
 
-const mapValue = (value: string, map: Record<string, string>, fallback: string): string => map[value] ?? fallback;
+const mapValue = (value: string, map: Record<string, string>, fallback: string): string =>
+  map[value] ?? map[value.toUpperCase()] ?? fallback;
 
 const reverseMapValue = (value: string, map: Record<string, string>, fallback: string): string => {
   const match = Object.entries(map).find(([, v]) => v === value);
