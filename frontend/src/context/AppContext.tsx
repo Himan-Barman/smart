@@ -305,9 +305,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const deleteDepartment = useCallback((id: string) => {
-    setDepartments((prev) => prev.filter((department) => department.id !== id));
-    void api.departments.remove(id);
-  }, []);
+    void api.departments.remove(id)
+      .then(() => {
+        setDepartments((prev) => prev.filter((department) => department.id !== id));
+      })
+      .catch((error) => {
+        window.alert(error instanceof Error ? error.message : 'Unable to delete department');
+        void refreshAppData();
+      });
+  }, [refreshAppData]);
 
   const addSubjectToDept = useCallback((deptId: string, semester: number, subject: Omit<DepartmentSubject, 'id'>) => {
     void api.departments.addSubject(deptId, semester, subject).then((nextDepartments) => {

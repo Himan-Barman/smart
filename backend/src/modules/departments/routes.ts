@@ -79,7 +79,7 @@ departmentRouter.patch(
       throw new HttpError(404, 'Department not found');
     }
 
-    await prisma.department.update({
+    const updated = await prisma.department.update({
       where: { id },
       data: {
         ...(payload.name ? { name: payload.name } : {}),
@@ -89,6 +89,23 @@ departmentRouter.patch(
         ...(payload.hod ? { hod: payload.hod } : {}),
       },
     });
+
+    if ((payload.name && payload.name !== existing.name) || (payload.course && payload.course !== existing.course)) {
+      await prisma.$transaction([
+        prisma.registeredPerson.updateMany({
+          where: { department: existing.name },
+          data: { department: updated.name, course: updated.course },
+        }),
+        prisma.user.updateMany({
+          where: { department: existing.name },
+          data: { department: updated.name, course: updated.course },
+        }),
+        prisma.scheduleSlot.updateMany({
+          where: { department: existing.name },
+          data: { department: updated.name, course: updated.course },
+        }),
+      ]);
+    }
 
     res.json(await getDepartmentList());
   }),
@@ -103,6 +120,15 @@ departmentRouter.delete(
     const existing = await prisma.department.findUnique({ where: { id } });
     if (!existing) {
       throw new HttpError(404, 'Department not found');
+    }
+
+    const [persons, users, scheduleSlots] = await Promise.all([
+      prisma.registeredPerson.count({ where: { department: existing.name } }),
+      prisma.user.count({ where: { department: existing.name } }),
+      prisma.scheduleSlot.count({ where: { department: existing.name } }),
+    ]);
+    if (persons + users + scheduleSlots > 0) {
+      throw new HttpError(409, 'Department is in use by users or schedule slots.');
     }
 
     await prisma.department.delete({ where: { id } });

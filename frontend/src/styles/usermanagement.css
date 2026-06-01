@@ -72,6 +72,17 @@
 }
 .um-select:focus { border-color: var(--accent-blue); box-shadow: 0 0 0 3px rgba(108,93,211,0.08); }
 
+/* Department selector in add/edit modal */
+.um-department-picker { position: relative; }
+.um-department-picker .sm__dropdown { z-index: 260; }
+.um-department-preview {
+  margin-top: 8px; padding: 10px 12px; border-radius: 10px;
+  background: var(--surface-2); border: 1px solid var(--glass-border);
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+.um-department-preview strong { font-size: 13px; color: var(--text-primary); font-weight: 700; }
+.um-department-preview span { font-size: 12px; color: var(--text-muted); font-weight: 600; white-space: nowrap; }
+
 /* ── Data Table ── */
 .um-table-wrap {
   background: #fff; border-radius: var(--radius-lg); border: 1px solid var(--card-border);

@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useApp } from '../../context/AppContext';
 import { api } from '../../api';
-import type { RegisteredPerson, UserRole } from '../../types';
+import type { Department, RegisteredPerson, UserRole } from '../../types';
 import Papa from 'papaparse';
 import { readSheet } from 'read-excel-file/browser';
 import { Search, Upload, Download, UserPlus, X, FileSpreadsheet, CheckCircle, AlertCircle, ClipboardList, Trash2 } from 'lucide-react';
@@ -12,8 +13,12 @@ type SpreadsheetCell = string | number | boolean | Date | null;
 const cellStr = (c: SpreadsheetCell | undefined): string => { if (c instanceof Date) return c.toISOString().split('T')[0] ?? ''; if (c == null) return ''; return String(c).trim(); };
 const rowsToRecords = (rows: SpreadsheetCell[][]): Record<string, string>[] => { const [h, ...b] = rows; if (!h) return []; const hd = h.map(cellStr); return b.map(r => hd.reduce<Record<string, string>>((o, k, i) => { if (k) o[k] = cellStr(r[i]); return o; }, {})); };
 
+const normalizeLookup = (value: string): string => value.trim().toLowerCase();
+const departmentDisplay = (department: Department): string => `${department.name} (${department.code})`;
+
 const AdminUploadPage: React.FC = () => {
   const { registeredPersons, registeredUsers, uploadPersons, removeRegisteredPerson, refreshAdminData } = useAuth();
+  const { departments } = useApp();
   const [stats, setStats] = useState<UserStats>({ totalUsers: 0, registeredAccounts: 0, students: 0, teachers: 0, verified: 0, pendingVerification: 0, departmentCount: 0, recentlyAdded: 0 });
   const [search, setSearch] = useState('');
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
@@ -35,11 +40,21 @@ const AdminUploadPage: React.FC = () => {
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Load stats
-  useEffect(() => { api.users.getStats().then(setStats).catch(() => {}); }, [registeredPersons, registeredUsers]);
+  useEffect(() => { void refreshAdminData(); }, [refreshAdminData, departments]);
 
-  // Departments list
-  const departments = useMemo(() => [...new Set(registeredPersons.map(p => p.department).filter(Boolean))].sort(), [registeredPersons]);
+  // Load stats
+  useEffect(() => { api.users.getStats().then(setStats).catch(() => {}); }, [registeredPersons, registeredUsers, departments]);
+
+  // Departments are managed from the admin Departments page and reused here.
+  const departmentByLookup = useMemo(() => {
+    const map = new Map<string, Department>();
+    departments.forEach((department) => {
+      [department.name, department.code].forEach((value) => {
+        if (value) map.set(normalizeLookup(value), department);
+      });
+    });
+    return map;
+  }, [departments]);
 
   // Filter logic
   const filtered = useMemo(() => {
@@ -79,11 +94,13 @@ const AdminUploadPage: React.FC = () => {
     const subjects = row['subjects'] || row['Subjects'] || '';
     if (!name || !email) return { error: `Row ${i+1}: Missing name/email` };
     if (!['student','teacher'].includes(role)) return { error: `Row ${i+1}: Invalid role` };
+    const department = departmentByLookup.get(normalizeLookup(dept));
+    if (!department) return { error: `Row ${i+1}: Department must match the Departments page list` };
     if (role === 'student' && !enr) return { error: `Row ${i+1}: Missing enrollment no` };
     if (role === 'teacher' && !emp) return { error: `Row ${i+1}: Missing employee ID` };
     const id = role === 'student' ? enr : emp;
     if (!/^\d{12}$/.test(id)) return { error: `Row ${i+1}: University ID must be exactly 12 digits` };
-    return { person: { id, name, email, role, department: dept, ...(role === 'student' ? { enrollmentNo: enr, semester: parseInt(sem) || undefined, course: course || undefined } : { employeeId: emp, subjects: subjects ? subjects.split(',').map(s => s.trim()) : undefined }), phone: phone || undefined } };
+    return { person: { id, name, email, role, department: department.name, ...(role === 'student' ? { enrollmentNo: enr, semester: parseInt(sem) || undefined, course: course || department.course } : { employeeId: emp, subjects: subjects ? subjects.split(',').map(s => s.trim()) : undefined }), phone: phone || undefined } };
   };
 
   const processFile = (rows: Record<string, string>[]) => {
@@ -100,14 +117,23 @@ const AdminUploadPage: React.FC = () => {
   };
 
   const confirmImport = async () => {
-    const c = await uploadPersons(previewData);
-    setImportResult({ count: c, errors: [], duplicates: [] }); setPreviewData([]); setShowImport(false);
+    const result = await uploadPersons(previewData);
+    setImportResult({ count: result.count, errors: result.errors, duplicates: result.duplicates }); setPreviewData([]); setShowImport(false);
   };
 
   const handleDrop = (e: React.DragEvent) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); };
 
   const downloadTemplate = () => {
-    const csv = ['name,email,role,department,enrollment_no,employee_id,semester,course,phone,subjects','John Doe,john@uni.edu,student,Computer Science,231001102001,,2,B.Tech CSE,9876543210,','Dr. Jane,jane@uni.edu,teacher,Computer Science,,310001100001,,,9876500010,OS DBMS'].join('\n');
+    const primaryDepartment = departments[0];
+    const secondaryDepartment = departments[1] ?? primaryDepartment;
+    const studentDepartment = primaryDepartment?.name ?? 'Department Name';
+    const studentCourse = primaryDepartment?.course ?? 'Course Name';
+    const facultyDepartment = secondaryDepartment?.name ?? studentDepartment;
+    const csv = [
+      'name,email,role,department,enrollment_no,employee_id,semester,course,phone,subjects',
+      `John Doe,john@uni.edu,student,${studentDepartment},231001102001,,2,${studentCourse},9876543210,`,
+      `Dr. Jane,jane@uni.edu,teacher,${facultyDepartment},,310001100001,,,9876500010,OS DBMS`,
+    ].join('\n');
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'smart_campus_template.csv'; a.click();
   };
 
@@ -253,7 +279,9 @@ const AdminUploadPage: React.FC = () => {
           {departments.length > 0 && (
             <select className="um-select" value={deptFilter} onChange={e => setDeptFilter(e.target.value)}>
               <option value="">All Depts</option>
-              {departments.map(d => <option key={d} value={d}>{d}</option>)}
+              {departments.map((department) => (
+                <option key={department.id} value={department.name}>{departmentDisplay(department)}</option>
+              ))}
             </select>
           )}
         </div>
@@ -268,8 +296,14 @@ const AdminUploadPage: React.FC = () => {
       </div>
 
       {/* Import Result Banner */}
-      {importResult && !showImport && importResult.count > 0 && (
-        <div className="upload-result upload-result--success"><CheckCircle size={15}/> {importResult.count} records imported successfully</div>
+      {importResult && !showImport && (importResult.count > 0 || importResult.errors.length > 0 || importResult.duplicates.length > 0) && (
+        <div className={`upload-result ${importResult.count > 0 ? 'upload-result--success' : 'upload-result--error'}`}>
+          {importResult.count > 0 ? <CheckCircle size={15}/> : <AlertCircle size={15}/>}
+          {importResult.count} records imported
+          {(importResult.errors.length > 0 || importResult.duplicates.length > 0) && (
+            <span> · {importResult.errors.length + importResult.duplicates.length} skipped</span>
+          )}
+        </div>
       )}
 
       {/* Import Preview Modal */}

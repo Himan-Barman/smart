@@ -167,7 +167,11 @@ const AdminUploadPage: React.FC = () => {
   };
 
   const handleDrop = (e: React.DragEvent) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); };
-  const confirmUpload = async () => { const c = await uploadPersons(previewData); setUploadResult({ count: c, errors: [] }); setPreviewData([]); setShowPreview(false); };
+  const confirmUpload = async () => {
+    const result = await uploadPersons(previewData);
+    setUploadResult({ count: result.count, errors: [...result.errors, ...result.duplicates.map((email) => `${email}: duplicate user`)] });
+    setPreviewData([]); setShowPreview(false);
+  };
   const handleDelete = async () => { if (!deleteTarget) return; await removeRegisteredPerson(deleteTarget.id); setDeleteTarget(null); };
 
   const handleManualAdd = async (e: React.FormEvent) => {

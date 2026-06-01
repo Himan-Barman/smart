@@ -38,11 +38,44 @@ const slotInputSchema = z.object({
   section: z.string().optional(),
 });
 
+type ManagedDepartment = {
+  name: string;
+  code: string;
+  course: string;
+  totalSemesters: number;
+};
+
+const normalizeDepartmentKey = (value: string): string => value.trim().toLowerCase();
+
+const resolveManagedDepartment = async (value: string): Promise<ManagedDepartment> => {
+  const departments = await prisma.department.findMany({
+    select: { name: true, code: true, course: true, totalSemesters: true },
+  });
+  const department = departments.find((candidate) =>
+    normalizeDepartmentKey(candidate.name) === normalizeDepartmentKey(value) ||
+    normalizeDepartmentKey(candidate.code) === normalizeDepartmentKey(value),
+  );
+
+  if (!department) {
+    throw new HttpError(400, 'Department must be selected from the Departments page list.');
+  }
+
+  return department;
+};
+
+const assertSemesterAllowed = (semester: number | undefined, department: ManagedDepartment): void => {
+  if (semester && semester > department.totalSemesters) {
+    throw new HttpError(400, `Semester must be within ${department.totalSemesters} semesters for ${department.name}.`);
+  }
+};
+
 scheduleRouter.post(
   '/',
   requireRole('admin'),
   asyncHandler(async (req, res) => {
     const payload = slotInputSchema.parse(req.body);
+    const department = await resolveManagedDepartment(payload.department);
+    assertSemesterAllowed(payload.semester, department);
 
     const slot = await prisma.scheduleSlot.create({
       data: {
@@ -56,9 +89,9 @@ scheduleRouter.post(
         facultyId: payload.facultyId,
         room: payload.room,
         type: mapper.scheduleTypeFromClient(payload.type),
-        department: payload.department,
+        department: department.name,
         semester: payload.semester,
-        course: payload.course,
+        course: department.course,
         section: payload.section,
       },
     });
@@ -79,6 +112,16 @@ scheduleRouter.patch(
       throw new HttpError(404, 'Schedule slot not found');
     }
 
+    const department = payload.department ? await resolveManagedDepartment(payload.department) : null;
+    const activeDepartment = department ?? (
+      payload.semester !== undefined || payload.course !== undefined
+        ? await resolveManagedDepartment(existing.department)
+        : null
+    );
+    if (activeDepartment) {
+      assertSemesterAllowed(payload.semester ?? existing.semester, activeDepartment);
+    }
+
     const slot = await prisma.scheduleSlot.update({
       where: { id },
       data: {
@@ -91,9 +134,9 @@ scheduleRouter.patch(
         ...(payload.facultyId ? { facultyId: payload.facultyId } : {}),
         ...(payload.room ? { room: payload.room } : {}),
         ...(payload.type ? { type: mapper.scheduleTypeFromClient(payload.type) } : {}),
-        ...(payload.department ? { department: payload.department } : {}),
+        ...(department ? { department: department.name } : {}),
         ...(payload.semester ? { semester: payload.semester } : {}),
-        ...(payload.course ? { course: payload.course } : {}),
+        ...((department || payload.course !== undefined) && activeDepartment ? { course: activeDepartment.course } : {}),
         ...(payload.section !== undefined ? { section: payload.section } : {}),
       },
     });

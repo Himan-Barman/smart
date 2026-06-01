@@ -26,6 +26,48 @@ const personSchema = z.object({
   phone: z.string().optional(),
 });
 
+type ManagedDepartment = {
+  name: string;
+  code: string;
+  course: string;
+  totalSemesters: number;
+};
+
+const normalizeDepartmentKey = (value: string): string => value.trim().toLowerCase();
+
+const buildDepartmentLookup = async (): Promise<Map<string, ManagedDepartment>> => {
+  const departments = await prisma.department.findMany({
+    select: { name: true, code: true, course: true, totalSemesters: true },
+  });
+  const lookup = new Map<string, ManagedDepartment>();
+
+  departments.forEach((department) => {
+    lookup.set(normalizeDepartmentKey(department.name), department);
+    lookup.set(normalizeDepartmentKey(department.code), department);
+  });
+
+  return lookup;
+};
+
+const findManagedDepartment = (
+  lookup: Map<string, ManagedDepartment>,
+  value: string,
+): ManagedDepartment | undefined => lookup.get(normalizeDepartmentKey(value));
+
+const resolveManagedDepartment = async (value: string): Promise<ManagedDepartment> => {
+  const department = findManagedDepartment(await buildDepartmentLookup(), value);
+  if (!department) {
+    throw new HttpError(400, 'Department must be selected from the Departments page list.');
+  }
+  return department;
+};
+
+const assertSemesterAllowed = (semester: number | undefined, department: ManagedDepartment): void => {
+  if (semester && semester > department.totalSemesters) {
+    throw new HttpError(400, `Semester must be within ${department.totalSemesters} semesters for ${department.name}.`);
+  }
+};
+
 /* ── Stats endpoint for dashboard metrics ── */
 userRouter.get(
   '/stats',
@@ -48,8 +90,8 @@ userRouter.get(
       prisma.registeredPerson.count({
         where: { user: { isNot: null } },
       }),
-      // Count distinct departments
-      prisma.registeredPerson.groupBy({ by: ['department'] }).then((g) => g.length),
+      // Count departments managed from the Departments page.
+      prisma.department.count(),
       // Recently added (last 7 days)
       prisma.registeredPerson.count({
         where: {
@@ -97,7 +139,19 @@ userRouter.post(
 
     let added = 0;
     const duplicates: string[] = [];
+    const errors: string[] = [];
+    const departmentLookup = await buildDepartmentLookup();
     for (const person of payload) {
+      const department = findManagedDepartment(departmentLookup, person.department);
+      if (!department) {
+        errors.push(`${person.email}: department must match the Departments page list`);
+        continue;
+      }
+      if (person.role === 'student' && person.semester && person.semester > department.totalSemesters) {
+        errors.push(`${person.email}: semester must be within ${department.totalSemesters} semesters for ${department.name}`);
+        continue;
+      }
+
       const existing = await prisma.registeredPerson.findFirst({
         where: {
           OR: [
@@ -108,8 +162,18 @@ userRouter.post(
           ],
         },
       });
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { id: person.id },
+            { email: person.email.toLowerCase() },
+            ...(person.enrollmentNo ? [{ enrollmentNo: person.enrollmentNo }] : []),
+            ...(person.employeeId ? [{ employeeId: person.employeeId }] : []),
+          ],
+        },
+      });
 
-      if (existing) {
+      if (existing || existingUser) {
         duplicates.push(person.email);
         continue;
       }
@@ -120,11 +184,11 @@ userRouter.post(
           name: person.name,
           email: person.email.toLowerCase(),
           role: mapper.roleFromClient(person.role),
-          department: person.department,
+          department: department.name,
           enrollmentNo: person.enrollmentNo,
           employeeId: person.employeeId,
           semester: person.semester,
-          course: person.course,
+          course: person.role === 'student' ? department.course : person.course,
           subjects: serializer.fromSubjectList(person.subjects),
           phone: person.phone,
         },
@@ -132,7 +196,7 @@ userRouter.post(
       added += 1;
     }
 
-    res.json({ count: added, duplicates });
+    res.json({ count: added, duplicates, errors });
   }),
 );
 
@@ -141,6 +205,10 @@ userRouter.post(
   requireRole('admin'),
   asyncHandler(async (req, res) => {
     const payload = personSchema.parse(req.body);
+    const department = await resolveManagedDepartment(payload.department);
+    if (payload.role === 'student') {
+      assertSemesterAllowed(payload.semester, department);
+    }
 
     const existing = await prisma.registeredPerson.findFirst({
       where: {
@@ -152,8 +220,18 @@ userRouter.post(
         ],
       },
     });
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: payload.id },
+          { email: payload.email.toLowerCase() },
+          ...(payload.enrollmentNo ? [{ enrollmentNo: payload.enrollmentNo }] : []),
+          ...(payload.employeeId ? [{ employeeId: payload.employeeId }] : []),
+        ],
+      },
+    });
 
-    if (existing) {
+    if (existing || existingUser) {
       throw new HttpError(409, 'A person with same ID/email already exists.');
     }
 
@@ -163,11 +241,11 @@ userRouter.post(
         name: payload.name,
         email: payload.email.toLowerCase(),
         role: mapper.roleFromClient(payload.role),
-        department: payload.department,
+        department: department.name,
         enrollmentNo: payload.enrollmentNo,
         employeeId: payload.employeeId,
         semester: payload.semester,
-        course: payload.course,
+        course: payload.role === 'student' ? department.course : payload.course,
         subjects: serializer.fromSubjectList(payload.subjects),
         phone: payload.phone,
       },
@@ -243,14 +321,30 @@ userRouter.patch(
       }
     }
 
+    const department = updates.department ? await resolveManagedDepartment(updates.department) : null;
+    let syncedCourse: string | undefined;
+    if (existing.role === 'STUDENT') {
+      const activeDepartment = department ?? (
+        updates.semester !== undefined || updates.course !== undefined
+          ? await resolveManagedDepartment(existing.department)
+          : null
+      );
+      if (activeDepartment) {
+        assertSemesterAllowed(updates.semester ?? existing.semester ?? undefined, activeDepartment);
+        syncedCourse = activeDepartment.course;
+      }
+    } else if (updates.course !== undefined) {
+      syncedCourse = updates.course;
+    }
+
     const updated = await prisma.registeredPerson.update({
       where: { id },
       data: {
         ...(updates.name && { name: updates.name }),
         ...(updates.email && { email: updates.email.toLowerCase() }),
-        ...(updates.department && { department: updates.department }),
+        ...(department && { department: department.name }),
         ...(updates.semester !== undefined && { semester: updates.semester }),
-        ...(updates.course !== undefined && { course: updates.course }),
+        ...(syncedCourse !== undefined && { course: syncedCourse }),
         ...(updates.subjects !== undefined && { subjects: serializer.fromSubjectList(updates.subjects) }),
         ...(updates.phone !== undefined && { phone: updates.phone }),
       },

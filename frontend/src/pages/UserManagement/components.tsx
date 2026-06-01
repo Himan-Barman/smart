@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import type { RegisteredPerson, UserRole } from '../../types';
+import React, { useMemo, useState } from 'react';
+import type { Department, RegisteredPerson, UserRole } from '../../types';
+import SuggestInput, { type SuggestOption } from '../../components/SuggestInput';
 import { getInitials, getAvatarGradient, formatDate } from './constants';
 import {
   Users, GraduationCap, User as UserIcon, ShieldCheck, Clock,
@@ -159,7 +160,7 @@ export const DeleteModal: React.FC<{ person: RegisteredPerson; onConfirm: () => 
 
 /* ── Add User Modal ── */
 export const AddUserModal: React.FC<{
-  departments: string[];
+  departments: Department[];
   onSubmit: (p: RegisteredPerson) => void;
   onClose: () => void;
   initialPerson?: RegisteredPerson | null;
@@ -178,20 +179,58 @@ export const AddUserModal: React.FC<{
     phone: initialPerson?.phone ?? '',
     subjects: initialPerson?.subjects?.join(', ') ?? '',
   });
+  const [localError, setLocalError] = useState('');
+  const departmentOptions = useMemo<SuggestOption[]>(() => (
+    departments.map((department) => ({
+      id: department.id,
+      label: department.name,
+      sub: department.code,
+      meta: department.course,
+      badge: `${department.totalSemesters} sem`,
+    }))
+  ), [departments]);
+  const selectedDepartment = useMemo(
+    () => departments.find((department) => department.name === f.department) ?? null,
+    [departments, f.department],
+  );
+  const selectDepartment = (option: SuggestOption) => {
+    const department = departments.find((candidate) => candidate.id === option.id);
+    setLocalError('');
+    setF((value) => ({
+      ...value,
+      department: option.label,
+      course: department?.course ?? value.course,
+      semester: value.semester && department && Number(value.semester) > department.totalSemesters ? '' : value.semester,
+    }));
+  };
+  const changeDepartment = (value: string) => {
+    setLocalError('');
+    setF((current) => ({ ...current, department: value, course: '' }));
+  };
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedDepartment) {
+      setLocalError(departments.length > 0
+        ? 'Select a department from the Departments page list.'
+        : 'Add a department first from the Departments page.');
+      return;
+    }
     const identifier = f.identifier.trim();
+    if (!/^\d{12}$/.test(identifier)) {
+      setLocalError('University ID must be exactly 12 digits.');
+      return;
+    }
     const person: RegisteredPerson = {
       id: initialPerson?.id ?? identifier,
       name: f.name.trim(),
       email: f.email.trim().toLowerCase(),
       role: f.role,
-      department: f.department.trim(),
+      department: selectedDepartment.name,
       phone: f.phone.trim() || undefined,
       ...(f.role === 'student' ? {
         enrollmentNo: initialPerson?.enrollmentNo ?? identifier,
         semester: parseInt(f.semester) || undefined,
-        course: f.course.trim() || undefined,
+        course: selectedDepartment.course,
       } : {
         employeeId: initialPerson?.employeeId ?? identifier,
         subjects: f.subjects ? f.subjects.split(',').map(s => s.trim()).filter(Boolean) : undefined,
@@ -204,7 +243,7 @@ export const AddUserModal: React.FC<{
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal__header"><h3>{isEdit ? 'Edit User' : 'Add User'}</h3><button className="modal__close" onClick={onClose}><X size={18}/></button></div>
         <form className="modal__form" onSubmit={submit}>
-          {error && <div className="auth-err">{error}</div>}
+          {(localError || error) && <div className="auth-err">{localError || error}</div>}
           <div className="form-row">
             <div className="form-group"><label>Full Name</label><input required value={f.name} onChange={e => setF(v=>({...v,name:e.target.value}))}/></div>
             <div className="form-group"><label>Email</label><input type="email" required value={f.email} onChange={e => setF(v=>({...v,email:e.target.value}))}/></div>
@@ -212,12 +251,28 @@ export const AddUserModal: React.FC<{
           <div className="form-row">
             <div className="form-group"><label>Role</label><select value={f.role} disabled={isEdit} onChange={e => setF(v=>({...v,role:e.target.value as UserRole}))}><option value="student">Student</option><option value="teacher">Faculty</option></select></div>
             <div className="form-group"><label>Department</label>
-              <input required list="um-departments" value={f.department} onChange={e => setF(v=>({...v,department:e.target.value}))}/>
-              <datalist id="um-departments">{departments.map(d=><option key={d} value={d}/>)}</datalist>
+              <div className="um-department-picker">
+                <SuggestInput
+                  options={departmentOptions}
+                  value={f.department}
+                  onSelect={selectDepartment}
+                  onChange={changeDepartment}
+                  icon={<Building2 size={14}/>}
+                  placeholder={departments.length > 0 ? 'Search department' : 'No departments available'}
+                  emptyText="No departments found"
+                  hintLabel="departments"
+                />
+              </div>
+              {selectedDepartment && (
+                <div className="um-department-preview">
+                  <strong>{selectedDepartment.name}</strong>
+                  <span>{selectedDepartment.code} · {selectedDepartment.course}</span>
+                </div>
+              )}
             </div>
           </div>
           <div className="form-group"><label>{f.role==='student'?'Enrollment No':'Employee ID'}</label><input required disabled={isEdit} pattern="\d{12}" title="Use the 12-digit university ID used during signup" value={f.identifier} onChange={e => setF(v=>({...v,identifier:e.target.value.replace(/\D/g, '').slice(0, 12)}))}/></div>
-          {f.role==='student' && <div className="form-row"><div className="form-group"><label>Semester</label><input type="number" min="1" max="8" value={f.semester} onChange={e => setF(v=>({...v,semester:e.target.value}))}/></div><div className="form-group"><label>Course</label><input value={f.course} onChange={e => setF(v=>({...v,course:e.target.value}))}/></div></div>}
+          {f.role==='student' && <div className="form-row"><div className="form-group"><label>Semester</label><input type="number" min="1" max={selectedDepartment?.totalSemesters ?? 16} value={f.semester} onChange={e => setF(v=>({...v,semester:e.target.value}))}/></div><div className="form-group"><label>Course</label><input value={selectedDepartment?.course ?? f.course} readOnly placeholder="Select department first"/></div></div>}
           {f.role==='teacher' && <div className="form-group"><label>Subjects (comma-separated)</label><input value={f.subjects} onChange={e => setF(v=>({...v,subjects:e.target.value}))}/></div>}
           <div className="form-group"><label>Phone</label><input value={f.phone} onChange={e => setF(v=>({...v,phone:e.target.value}))}/></div>
           <button type="submit" className="btn btn--primary btn--full" disabled={saving}><UserPlus size={16}/> {saving ? 'Saving...' : isEdit ? 'Save User' : 'Add User'}</button>

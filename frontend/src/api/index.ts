@@ -174,7 +174,7 @@ export const api = {
       }>('/users/stats');
     },
     uploadRegisteredPersons(persons: RegisteredPerson[]) {
-      return request<{ count: number; duplicates: string[] }>('/users/registered-persons/bulk', {
+      return request<{ count: number; duplicates: string[]; errors?: string[] }>('/users/registered-persons/bulk', {
         method: 'POST',
         body: persons,
       });

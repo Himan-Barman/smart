@@ -67,7 +67,7 @@ const SchedulePage: React.FC = () => {
     return slots.filter(s => s.day === activeDay).sort((a, b) => a.startTime.localeCompare(b.startTime));
   }, [schedule, activeDay, role, currentUser, filterDept]);
 
-  const scheduleDepartments = [...new Set(schedule.map(s => s.department))];
+  const scheduleDepartments = departments.map((department) => department.name);
 
   /* ═══ SUGGEST OPTIONS ═══ */
 
@@ -75,7 +75,7 @@ const SchedulePage: React.FC = () => {
   const deptOptions: SuggestOption[] = useMemo(() =>
     departments.map(d => ({
       id: d.id, label: d.name, sub: d.code,
-      meta: `${d.totalSemesters} sem`, badge: d.course,
+      meta: d.course, badge: `${d.totalSemesters} sem`,
       badgeBg: 'rgba(59,108,245,0.08)', badgeColor: '#3b6cf5',
     })), [departments]);
 
@@ -174,7 +174,9 @@ const SchedulePage: React.FC = () => {
   const openEdit = (slot: ScheduleSlot) => { setForm({ ...slot }); setEditingId(slot.id); setShowForm(true); };
   const handleSave = () => {
     if (!form.subject || !form.courseCode || !form.startTime || !form.endTime) return;
-    if (editingId) updateScheduleSlot(editingId, form); else addScheduleSlot(form);
+    if (!selectedDept || !form.semester) return;
+    const slot = { ...form, department: selectedDept.name, course: selectedDept.course };
+    if (editingId) updateScheduleSlot(editingId, slot); else addScheduleSlot(slot);
     setShowForm(false); setEditingId(null);
   };
 

@@ -25,7 +25,7 @@ interface AuthContextType {
   setCurrentUser: (user: User) => void;
   updateProfile: (updates: { name?: string; email?: string; phone?: string }) => Promise<User>;
 
-  uploadPersons: (persons: RegisteredPerson[]) => Promise<number>;
+  uploadPersons: (persons: RegisteredPerson[]) => Promise<{ count: number; errors: string[]; duplicates: string[] }>;
   removeRegisteredPerson: (id: string) => Promise<void>;
   refreshAdminData: () => Promise<void>;
 }
@@ -203,7 +203,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const uploadPersons = useCallback(async (persons: RegisteredPerson[]) => {
     const response = await api.users.uploadRegisteredPersons(persons);
     await refreshAdminData();
-    return response.count;
+    return {
+      count: response.count,
+      errors: response.errors ?? [],
+      duplicates: response.duplicates,
+    };
   }, [refreshAdminData]);
 
   const removeRegisteredPerson = useCallback(async (id: string) => {
