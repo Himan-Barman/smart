@@ -4,6 +4,7 @@ import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { env } from '../../config/env.js';
+import { ensureAuthSessionTable, isMissingAuthSessionTableError } from '../../lib/auth-session-store.js';
 import { HttpError } from '../../lib/errors.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../lib/jwt.js';
 import { hashPassword, verifyPassword } from '../../lib/password.js';
@@ -141,16 +142,25 @@ const createSession = async (user: AuthUser | CurrentUser, req: Request, res: Re
   const refreshTokenHash = hashRefreshToken(refreshToken);
   const expiresAt = new Date(Date.now() + refreshTokenTtlMs());
 
-  await prisma.authSession.create({
-    data: {
-      id: sessionId,
-      userId: user.id,
-      refreshTokenHash,
-      expiresAt,
-      userAgent: req.get('user-agent'),
-      ipAddress: req.ip,
-    },
-  });
+  const data = {
+    id: sessionId,
+    userId: user.id,
+    refreshTokenHash,
+    expiresAt,
+    userAgent: req.get('user-agent'),
+    ipAddress: req.ip,
+  };
+
+  try {
+    await prisma.authSession.create({ data });
+  } catch (error) {
+    if (!isMissingAuthSessionTableError(error)) {
+      throw error;
+    }
+
+    await ensureAuthSessionTable();
+    await prisma.authSession.create({ data });
+  }
 
   setRefreshCookie(res, refreshToken);
   return accessTokenFor(user);
