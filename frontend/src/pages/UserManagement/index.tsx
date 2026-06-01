@@ -40,10 +40,42 @@ const AdminUploadPage: React.FC = () => {
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const derivedStats = useMemo<UserStats>(() => {
+    const recentlyAddedThreshold = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const verified = registeredPersons.filter((person) => person.isVerified).length;
+
+    return {
+      totalUsers: registeredPersons.length,
+      registeredAccounts: registeredUsers.length,
+      students: registeredPersons.filter((person) => person.role === 'student').length,
+      teachers: registeredPersons.filter((person) => person.role === 'teacher').length,
+      verified,
+      pendingVerification: registeredPersons.length - verified,
+      departmentCount: departments.length,
+      recentlyAdded: registeredPersons.filter((person) =>
+        person.createdAt && new Date(person.createdAt).getTime() >= recentlyAddedThreshold,
+      ).length,
+    };
+  }, [registeredPersons, registeredUsers, departments]);
+
   useEffect(() => { void refreshAdminData(); }, [refreshAdminData, departments]);
 
   // Load stats
-  useEffect(() => { api.users.getStats().then(setStats).catch(() => {}); }, [registeredPersons, registeredUsers, departments]);
+  useEffect(() => {
+    let active = true;
+    setStats(derivedStats);
+    api.users.getStats()
+      .then((nextStats) => {
+        if (active) setStats(nextStats);
+      })
+      .catch(() => {
+        if (active) setStats(derivedStats);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [derivedStats]);
 
   // Departments are managed from the admin Departments page and reused here.
   const departmentByLookup = useMemo(() => {

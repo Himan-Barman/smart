@@ -126,7 +126,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   useEffect(() => {
-    void refreshAppData();
+    void refreshAppData().catch((error) => {
+      console.warn('Unable to load app data', error);
+    });
   }, [refreshAppData]);
 
   const addNotice = useCallback((notice: Omit<Notice, 'id' | 'date'>) => {

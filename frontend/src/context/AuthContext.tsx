@@ -32,6 +32,22 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const accountToRegisteredPerson = (user: User): RegisteredPerson => ({
+  id: user.id,
+  name: user.name,
+  email: user.email,
+  role: user.role,
+  department: user.department,
+  enrollmentNo: user.enrollmentNo,
+  employeeId: user.employeeId,
+  semester: user.semester,
+  course: user.course,
+  subjects: user.subjects,
+  phone: user.phone,
+  createdAt: user.createdAt,
+  isVerified: true,
+});
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [authStep, setAuthStep] = useState<AuthStep>('login');
   const [currentUser, setCurrentUserState] = useState<User | null>(null);
@@ -45,19 +61,39 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setCurrentUserState(user);
   }, []);
 
+  const loadAdminData = useCallback(async () => {
+    const [personsResult, usersResult] = await Promise.allSettled([
+      api.users.listRegisteredPersons(),
+      api.users.listRegisteredUsers(),
+    ]);
+
+    if (usersResult.status === 'fulfilled') {
+      setRegisteredUsers(usersResult.value);
+    }
+
+    if (personsResult.status === 'fulfilled') {
+      setRegisteredPersons(personsResult.value);
+      return;
+    }
+
+    if (usersResult.status === 'fulfilled') {
+      setRegisteredPersons(usersResult.value.map(accountToRegisteredPerson));
+      return;
+    }
+
+    console.warn('Unable to load admin user data', {
+      personsError: personsResult.reason,
+      usersError: usersResult.reason,
+    });
+  }, []);
+
   const refreshAdminData = useCallback(async () => {
     if (!currentUser || currentUser.role !== 'admin') {
       return;
     }
 
-    const [persons, users] = await Promise.all([
-      api.users.listRegisteredPersons(),
-      api.users.listRegisteredUsers(),
-    ]);
-
-    setRegisteredPersons(persons);
-    setRegisteredUsers(users);
-  }, [currentUser]);
+    await loadAdminData();
+  }, [currentUser, loadAdminData]);
 
   useEffect(() => {
     const init = async () => {
@@ -70,12 +106,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setAuthStep('authenticated');
 
         if (me.user.role === 'admin') {
-          const [persons, users] = await Promise.all([
-            api.users.listRegisteredPersons(),
-            api.users.listRegisteredUsers(),
-          ]);
-          setRegisteredPersons(persons);
-          setRegisteredUsers(users);
+          await loadAdminData();
         }
       } catch {
         tokenStore.clear();
@@ -83,7 +114,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     void init();
-  }, []);
+  }, [loadAdminData]);
 
   const login = useCallback(async (email: string, password: string) => {
     try {
@@ -93,12 +124,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setAuthStep('authenticated');
 
       if (response.user.role === 'admin') {
-        const [persons, users] = await Promise.all([
-          api.users.listRegisteredPersons(),
-          api.users.listRegisteredUsers(),
-        ]);
-        setRegisteredPersons(persons);
-        setRegisteredUsers(users);
+        await loadAdminData();
       }
 
       return { success: true, message: response.message };
@@ -108,7 +134,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         message: error instanceof Error ? error.message : 'Login failed',
       };
     }
-  }, []);
+  }, [loadAdminData]);
 
   const startSignup = useCallback(async (email: string, identifier: string) => {
     try {
@@ -162,12 +188,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setAuthStep('authenticated');
 
       if (response.user.role === 'admin') {
-        const [persons, users] = await Promise.all([
-          api.users.listRegisteredPersons(),
-          api.users.listRegisteredUsers(),
-        ]);
-        setRegisteredPersons(persons);
-        setRegisteredUsers(users);
+        await loadAdminData();
       }
 
       return { success: true, message: response.message };
@@ -177,7 +198,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         message: error instanceof Error ? error.message : 'Account creation failed',
       };
     }
-  }, [otpEmail, verifiedOtpCode]);
+  }, [otpEmail, verifiedOtpCode, loadAdminData]);
 
   const resendOTP = useCallback(async () => {
     if (!otpEmail) return;

@@ -20,6 +20,37 @@ import type {
 } from '@prisma/client';
 import { mapper } from './mappers.js';
 
+type SerializableUser = Pick<
+  User,
+  | 'id'
+  | 'name'
+  | 'email'
+  | 'role'
+  | 'department'
+  | 'enrollmentNo'
+  | 'employeeId'
+  | 'semester'
+  | 'course'
+  | 'subjects'
+  | 'phone'
+  | 'createdAt'
+>;
+
+type SerializableRegisteredPerson = Pick<
+  RegisteredPerson,
+  | 'id'
+  | 'name'
+  | 'email'
+  | 'role'
+  | 'department'
+  | 'enrollmentNo'
+  | 'employeeId'
+  | 'semester'
+  | 'course'
+  | 'subjects'
+  | 'phone'
+>;
+
 const toSubjectList = (value: string | null): string[] | undefined => {
   if (!value) return undefined;
   return value.split(',').map((s) => s.trim()).filter(Boolean);
@@ -34,7 +65,7 @@ export const serializer = {
   toSubjectList,
   fromSubjectList,
 
-  user(user: User) {
+  user(user: SerializableUser) {
     return {
       id: user.id,
       name: user.name,
@@ -51,7 +82,7 @@ export const serializer = {
     };
   },
 
-  registeredPerson(person: RegisteredPerson) {
+  registeredPerson(person: SerializableRegisteredPerson) {
     return {
       id: person.id,
       name: person.name,

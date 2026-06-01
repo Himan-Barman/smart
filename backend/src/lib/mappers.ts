@@ -11,6 +11,7 @@ const reverseMapValue = (value: string, map: Record<string, string>, fallback: s
 const roleMap: Record<string, string> = {
   ADMIN: 'admin',
   TEACHER: 'teacher',
+  FACULTY: 'teacher',
   STUDENT: 'student',
 };
 

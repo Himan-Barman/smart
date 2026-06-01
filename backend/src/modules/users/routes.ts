@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import type { RegisteredPerson, User } from '@prisma/client';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { HttpError } from '../../lib/errors.js';
+import { getManagedUserData, getNonAdminUsers, isAdminRole } from '../../lib/managed-users.js';
 import { mapper } from '../../lib/mappers.js';
 import { prisma } from '../../lib/prisma.js';
 import { serializer } from '../../lib/serializers.js';
@@ -69,70 +69,13 @@ const assertSemesterAllowed = (semester: number | undefined, department: Managed
   }
 };
 
-const nonAdminRoleFilter = { notIn: ['ADMIN', 'admin'] };
-
-const isSameIdentity = (person: RegisteredPerson, user: User): boolean => {
-  const personEmail = person.email.toLowerCase();
-  const userEmail = user.email.toLowerCase();
-  return (
-    person.id === user.id ||
-    personEmail === userEmail ||
-    Boolean(person.enrollmentNo && person.enrollmentNo === user.enrollmentNo) ||
-    Boolean(person.employeeId && person.employeeId === user.employeeId)
-  );
-};
-
-const serializeAccountAsManagedPerson = (user: User) => ({
-  ...serializer.user(user),
-  isVerified: true,
-  createdAt: user.createdAt.toISOString(),
-});
-
-const getManagedUserData = async () => {
-  const [persons, users] = await Promise.all([
-    prisma.registeredPerson.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: { user: true },
-    }),
-    prisma.user.findMany({
-      where: { role: nonAdminRoleFilter },
-      orderBy: { createdAt: 'desc' },
-    }),
-  ]);
-
-  const matchedUserIds = new Set<string>();
-  const managedPersons = persons.map((person) => {
-    const account = person.user ?? users.find((user) => isSameIdentity(person, user)) ?? null;
-    if (account) matchedUserIds.add(account.id);
-
-    return {
-      ...serializer.registeredPerson(person),
-      isVerified: account !== null,
-      createdAt: person.createdAt.toISOString(),
-    };
-  });
-
-  const orphanAccounts = users
-    .filter((user) => !matchedUserIds.has(user.id))
-    .map((user) => serializeAccountAsManagedPerson(user));
-
-  return {
-    managedPersons: [...managedPersons, ...orphanAccounts].sort((a, b) =>
-      new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime(),
-    ),
-    users,
-  };
-};
-
 /* ── Stats endpoint for dashboard metrics ── */
 userRouter.get(
   '/stats',
   requireRole('admin'),
   asyncHandler(async (_req, res) => {
-    const [{ managedPersons, users }, departmentCount] = await Promise.all([
-      getManagedUserData(),
-      prisma.department.count(),
-    ]);
+    const { managedPersons, users } = await getManagedUserData();
+    const departmentCount = await prisma.department.count();
 
     const recentlyAddedThreshold = Date.now() - 7 * 24 * 60 * 60 * 1000;
     const verifiedCount = managedPersons.filter((person) => person.isVerified).length;
@@ -310,10 +253,7 @@ userRouter.get(
   '/accounts',
   requireRole('admin'),
   asyncHandler(async (_req, res) => {
-    const users = await prisma.user.findMany({
-      where: { role: nonAdminRoleFilter },
-      orderBy: { createdAt: 'desc' },
-    });
+    const users = await getNonAdminUsers();
     res.json(users.map((user) => serializer.user(user)));
   }),
 );
@@ -339,8 +279,8 @@ userRouter.patch(
       include: { user: { select: { id: true } } },
     });
     if (!existing) {
-      const user = await prisma.user.findFirst({ where: { id, role: nonAdminRoleFilter } });
-      if (!user) {
+      const user = await prisma.user.findUnique({ where: { id } });
+      if (!user || isAdminRole(user.role)) {
         throw new HttpError(404, 'Person not found');
       }
 
@@ -387,7 +327,11 @@ userRouter.patch(
         },
       });
 
-      res.json(serializeAccountAsManagedPerson(updatedUser));
+      res.json({
+        ...serializer.user(updatedUser),
+        isVerified: true,
+        createdAt: updatedUser.createdAt.toISOString(),
+      });
       return;
     }
 
@@ -467,7 +411,7 @@ userRouter.delete(
     if (!user) {
       throw new HttpError(404, 'User account not found');
     }
-    if (mapper.roleToClient(user.role) === 'admin') {
+    if (isAdminRole(user.role)) {
       throw new HttpError(403, 'Cannot delete admin accounts');
     }
     await prisma.user.delete({ where: { id } });

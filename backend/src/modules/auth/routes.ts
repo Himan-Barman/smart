@@ -36,6 +36,37 @@ const resendSchema = z.object({
   email: z.string().email(),
 });
 
+const authUserSelect = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  department: true,
+  enrollmentNo: true,
+  employeeId: true,
+  semester: true,
+  course: true,
+  subjects: true,
+  phone: true,
+  passwordHash: true,
+  createdAt: true,
+} as const;
+
+const currentUserSelect = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  department: true,
+  enrollmentNo: true,
+  employeeId: true,
+  semester: true,
+  course: true,
+  subjects: true,
+  phone: true,
+  createdAt: true,
+} as const;
+
 const generateOtp = (): string => Math.floor(100000 + Math.random() * 900000).toString();
 
 // ─── LOGIN ───
@@ -45,7 +76,7 @@ authRouter.post(
     const payload = loginSchema.parse(req.body);
     const email = payload.email.toLowerCase();
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({ where: { email }, select: authUserSelect });
     if (!user) {
       throw new HttpError(404, 'No account found with this email. Please sign up first.');
     }
@@ -245,7 +276,7 @@ authRouter.get(
   '/me',
   requireAuth,
   asyncHandler(async (req, res) => {
-    const user = await prisma.user.findUnique({ where: { id: req.auth!.userId } });
+    const user = await prisma.user.findUnique({ where: { id: req.auth!.userId }, select: currentUserSelect });
     if (!user) {
       throw new HttpError(404, 'User not found');
     }
