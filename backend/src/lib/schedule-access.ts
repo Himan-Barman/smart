@@ -1,13 +1,22 @@
 import type { ScheduleSlot } from '@prisma/client';
 import { withDbReadRetry } from './db-read-retry.js';
+import type { DepartmentIdentity } from './department-matching.js';
 import { departmentsMatch, normalizeDepartmentKey } from './department-matching.js';
 import { mapper } from './mappers.js';
-import { prisma } from './prisma.js';
+import { queryRows } from './sql-read.js';
 
 type AuthRole = 'admin' | 'teacher' | 'student';
 
+type ScheduleUserScope = {
+  id: string;
+  role: string;
+  department: string;
+  employeeId: string | null;
+  semester: number | null;
+};
+
 const findAllScheduleSlots = (): Promise<ScheduleSlot[]> =>
-  prisma.$queryRaw<ScheduleSlot[]>`
+  queryRows<ScheduleSlot>(`
     SELECT
       "id",
       "day",
@@ -37,22 +46,41 @@ const findAllScheduleSlots = (): Promise<ScheduleSlot[]> =>
         ELSE 7
       END,
       "startTime" ASC
-  `;
+  `);
+
+const findScheduleUserScope = async (userId: string): Promise<ScheduleUserScope | null> => {
+  const users = await queryRows<ScheduleUserScope>(
+    `
+      SELECT
+        "id",
+        "role",
+        "department",
+        "employeeId",
+        "semester"
+      FROM "User"
+      WHERE "id" = $1
+      LIMIT 1
+    `,
+    [userId],
+  );
+
+  return users[0] ?? null;
+};
+
+const findDepartmentIdentities = (): Promise<DepartmentIdentity[]> =>
+  queryRows<DepartmentIdentity>(`
+    SELECT
+      "name",
+      "code",
+      "course"
+    FROM "Department"
+  `);
 
 export const findScheduleForUser = async (userId: string, authRole: AuthRole) => {
   const [user, departments, slots] = await withDbReadRetry('schedule read', () =>
     Promise.all([
-      prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          role: true,
-          department: true,
-          employeeId: true,
-          semester: true,
-        },
-      }),
-      prisma.department.findMany({ select: { name: true, code: true, course: true } }),
+      findScheduleUserScope(userId),
+      findDepartmentIdentities(),
       findAllScheduleSlots(),
     ]),
   );
