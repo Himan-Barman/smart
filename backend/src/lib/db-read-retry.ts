@@ -1,3 +1,5 @@
+import { prisma } from './prisma.js';
+
 const RETRY_DELAYS_MS = [80, 220, 500];
 
 const wait = (ms: number): Promise<void> => new Promise((resolve) => {
@@ -16,6 +18,7 @@ export const withDbReadRetry = async <T>(
     } catch (error) {
       lastError = error;
       if (attempt === RETRY_DELAYS_MS.length) break;
+      await prisma.$disconnect().catch(() => {});
       await wait(RETRY_DELAYS_MS[attempt]);
     }
   }
