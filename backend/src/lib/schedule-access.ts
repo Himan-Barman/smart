@@ -1,14 +1,42 @@
-import type { Prisma } from '@prisma/client';
+import type { ScheduleSlot } from '@prisma/client';
 import { departmentsMatch, normalizeDepartmentKey } from './department-matching.js';
 import { mapper } from './mappers.js';
 import { prisma } from './prisma.js';
 
 type AuthRole = 'admin' | 'teacher' | 'student';
 
-const orderBy: Prisma.ScheduleSlotOrderByWithRelationInput[] = [
-  { day: 'asc' },
-  { startTime: 'asc' },
-];
+const findAllScheduleSlots = (): Promise<ScheduleSlot[]> =>
+  prisma.$queryRaw<ScheduleSlot[]>`
+    SELECT
+      "id",
+      "day",
+      "startTime",
+      "endTime",
+      "subject",
+      "courseCode",
+      "faculty",
+      "facultyId",
+      "room",
+      "type",
+      "department",
+      "semester",
+      "course",
+      "section",
+      "createdAt",
+      "updatedAt"
+    FROM "ScheduleSlot"
+    ORDER BY
+      CASE "day"
+        WHEN 'MONDAY' THEN 1
+        WHEN 'TUESDAY' THEN 2
+        WHEN 'WEDNESDAY' THEN 3
+        WHEN 'THURSDAY' THEN 4
+        WHEN 'FRIDAY' THEN 5
+        WHEN 'SATURDAY' THEN 6
+        ELSE 7
+      END,
+      "startTime" ASC
+  `;
 
 export const findScheduleForUser = async (userId: string, authRole: AuthRole) => {
   const [user, departments, slots] = await Promise.all([
@@ -23,7 +51,7 @@ export const findScheduleForUser = async (userId: string, authRole: AuthRole) =>
       },
     }),
     prisma.department.findMany({ select: { name: true, code: true, course: true } }),
-    prisma.scheduleSlot.findMany({ orderBy }),
+    findAllScheduleSlots(),
   ]);
 
   if (!user) return [];
