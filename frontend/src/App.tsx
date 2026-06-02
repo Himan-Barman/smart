@@ -21,8 +21,8 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import OTPVerification from './pages/OTPVerification';
 import SetPasswordPage from './pages/SetPasswordPage';
+import type { PageType, UserRole } from './types';
 
-/* ── Styles ── */
 import './styles/global.css';
 import './styles/pages.css';
 import './styles/attendance.css';
@@ -31,144 +31,77 @@ import './styles/dashboard.css';
 import './styles/departments.css';
 import './styles/courseDetail.css';
 import './styles/usermanagement.css';
+import './styles/responsive.css';
+
+const pageAccess: Record<PageType, UserRole[]> = {
+  dashboard: ['admin', 'teacher', 'student'],
+  schedule: ['admin', 'teacher', 'student'],
+  notices: ['admin', 'teacher', 'student'],
+  feedback: ['admin', 'teacher', 'student'],
+  skills: ['admin', 'student'],
+  rooms: ['admin', 'teacher', 'student'],
+  grievances: ['admin', 'teacher', 'student'],
+  attendance: ['admin', 'teacher', 'student'],
+  admin_upload: ['admin'],
+  departments: ['admin'],
+  department_detail: ['admin', 'teacher', 'student'],
+  course_detail: ['admin', 'teacher', 'student'],
+  profile: ['admin', 'teacher', 'student'],
+  notifications: ['admin', 'teacher', 'student'],
+};
+
+const pages: Record<PageType, React.ReactNode> = {
+  dashboard: <Dashboard />,
+  schedule: <SchedulePage />,
+  departments: <DepartmentsPage />,
+  department_detail: <DepartmentDetailPage />,
+  course_detail: <CourseDetailPage />,
+  notices: <NoticeBoard />,
+  feedback: <FeedbackPage />,
+  skills: <SkillsPage />,
+  rooms: <RoomBooking />,
+  grievances: <GrievancePage />,
+  attendance: <AttendancePage />,
+  admin_upload: <AdminUploadPage />,
+  profile: <ProfilePage />,
+  notifications: <NotificationsPage />,
+};
 
 const PageRenderer: React.FC = () => {
-  const { currentPage } = useApp();
+  const { currentPage, setCurrentPage } = useApp();
   const { currentUser } = useAuth();
   const role = currentUser?.role || 'student';
+  const isAllowed = pageAccess[currentPage].includes(role);
 
-  // Role-based access control
-  const canAccess = (page: string): boolean => {
-    const access: Record<string, string[]> = {
-      dashboard: ['admin', 'teacher', 'student'],
-      schedule: ['admin', 'teacher', 'student'],
-      notices: ['admin', 'teacher', 'student'],
-      feedback: ['admin', 'teacher', 'student'],
-      skills: ['admin', 'student'],
-      rooms: ['admin', 'teacher', 'student'],
-      grievances: ['admin', 'teacher', 'student'],
-      attendance: ['admin', 'teacher', 'student'],
-      admin_upload: ['admin'],
-      departments: ['admin'],
-      department_detail: ['admin', 'teacher', 'student'],
-      course_detail: ['admin', 'teacher', 'student'],
-      profile: ['admin', 'teacher', 'student'],
-      notifications: ['admin', 'teacher', 'student'],
-    };
-    return access[page]?.includes(role) ?? false;
-  };
+  React.useEffect(() => {
+    if (!isAllowed) {
+      setCurrentPage('dashboard');
+    }
+  }, [isAllowed, setCurrentPage]);
 
-  if (!canAccess(currentPage)) {
+  if (!isAllowed) {
     return (
-      <div className="page" style={{ textAlign: 'center', paddingTop: '60px' }}>
-        <h2 style={{ marginBottom: 8, display:'flex', alignItems:'center', justifyContent:'center', gap:'10px' }}>
-          <span style={{color:'var(--accent-red)'}}>🔒</span> Access Restricted
-        </h2>
-        <p style={{ color: 'var(--text-muted)' }}>You don't have permission to access this page.</p>
+      <div className="page app-route-guard">
+        <h2>Access Restricted</h2>
+        <p>Redirecting to your dashboard.</p>
       </div>
     );
   }
 
-  const pages: Record<string, React.ReactNode> = {
-    dashboard: <Dashboard />,
-    schedule: <SchedulePage />,
-    departments: <DepartmentsPage />,
-    department_detail: <DepartmentDetailPage />,
-    course_detail: <CourseDetailPage />,
-    notices: <NoticeBoard />,
-    feedback: <FeedbackPage />,
-    skills: <SkillsPage />,
-    rooms: <RoomBooking />,
-    grievances: <GrievancePage />,
-    attendance: <AttendancePage />,
-    admin_upload: <AdminUploadPage />,
-    profile: <ProfilePage />,
-    notifications: <NotificationsPage />,
-  };
-
-  return <>{pages[currentPage] || <Dashboard />}</>;
+  return <>{pages[currentPage]}</>;
 };
 
-const AppLayout: React.FC = () => {
-  const { goBack, canGoBack } = useApp();
-
-  React.useEffect(() => {
-    let startX = 0;
-    let isDragging = false;
-    let lastSwipeTime = 0;
-
-    // Trackpad swipe detection
-    const handleWheel = (e: WheelEvent) => {
-      const now = Date.now();
-      if (now - lastSwipeTime < 500) return; // Debounce
-      
-      // Horizontal swipe right (deltaX is negative when scrolling right/swiping right)
-      if (e.deltaX < -50 && Math.abs(e.deltaY) < 20 && canGoBack) {
-        lastSwipeTime = now;
-        goBack();
-      }
-    };
-
-    // Touch events for mobile
-    const handleTouchStart = (e: TouchEvent) => {
-      startX = e.changedTouches[0].screenX;
-    };
-    const handleTouchEnd = (e: TouchEvent) => {
-      const distance = e.changedTouches[0].screenX - startX;
-      const now = Date.now();
-      if (now - lastSwipeTime < 500) return;
-
-      if (distance > 80 && canGoBack) {
-        lastSwipeTime = now;
-        goBack();
-      }
-    };
-
-    // Mouse drag events for desktop testing
-    const handleMouseDown = (e: MouseEvent) => {
-      startX = e.screenX;
-      isDragging = true;
-    };
-    const handleMouseUp = (e: MouseEvent) => {
-      if (!isDragging) return;
-      isDragging = false;
-      const distance = e.screenX - startX;
-      const now = Date.now();
-      if (now - lastSwipeTime < 500) return;
-
-      if (distance > 150 && canGoBack) {
-        lastSwipeTime = now;
-        goBack();
-      }
-    };
-
-    window.addEventListener('wheel', handleWheel, { passive: true });
-    window.addEventListener('touchstart', handleTouchStart, { passive: true });
-    window.addEventListener('touchend', handleTouchEnd, { passive: true });
-    window.addEventListener('mousedown', handleMouseDown, { passive: true });
-    window.addEventListener('mouseup', handleMouseUp, { passive: true });
-
-    return () => {
-      window.removeEventListener('wheel', handleWheel);
-      window.removeEventListener('touchstart', handleTouchStart);
-      window.removeEventListener('touchend', handleTouchEnd);
-      window.removeEventListener('mousedown', handleMouseDown);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [goBack, canGoBack]);
-
-  return (
-    <div className="app">
-      <Sidebar />
-      <div className="app__main">
-        <Header />
-        <main className="app__content">
-          <PageRenderer />
-        </main>
-      </div>
+const AppLayout: React.FC = () => (
+  <div className="app">
+    <Sidebar />
+    <div className="app__main">
+      <Header />
+      <main className="app__content">
+        <PageRenderer />
+      </main>
     </div>
-  );
-};
+  </div>
+);
 
 const AuthRouter: React.FC = () => {
   const { authStep } = useAuth();
@@ -195,12 +128,10 @@ const AuthRouter: React.FC = () => {
   }
 };
 
-const App: React.FC = () => {
-  return (
-    <AuthProvider>
-      <AuthRouter />
-    </AuthProvider>
-  );
-};
+const App: React.FC = () => (
+  <AuthProvider>
+    <AuthRouter />
+  </AuthProvider>
+);
 
 export default App;

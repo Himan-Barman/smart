@@ -1,0 +1,671 @@
+/* Last-loaded responsive hardening for the full app shell. */
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  overscroll-behavior-x: none;
+}
+
+button,
+input,
+select,
+textarea {
+  min-width: 0;
+  font: inherit;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.header__title h2,
+.sidebar__logo-text h1,
+.page__title,
+.dp-card__title,
+.schedule-card__title-row,
+.um-user-cell__name {
+  letter-spacing: 0 !important;
+}
+
+.app,
+.app__main,
+.app__content,
+.page,
+.dashboard,
+.dash,
+.attendance-page,
+.schedule-page,
+.um-page,
+.profile-layout,
+.profile-card,
+.notifications-list {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.app__content {
+  width: 100%;
+  scroll-behavior: smooth;
+}
+
+.page > *,
+.attendance-page > *,
+.schedule-page > *,
+.um-page > *,
+.dashboard > *,
+.dash > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.page h1,
+.page h2,
+.page h3,
+.page p,
+.notification-content,
+.search-result-info,
+.um-user-cell,
+.um-profile-detail__value,
+.attendance-record-card,
+.schedule-card,
+.dp-card,
+.dp-managed-card {
+  overflow-wrap: anywhere;
+}
+
+.app-route-guard {
+  min-height: min(420px, calc(100dvh - var(--header-height) - 48px));
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.app-route-guard h2 {
+  color: var(--text-primary);
+}
+
+.header__left,
+.header__right,
+.header__search-wrap,
+.search-result-info,
+.notification-content,
+.um-card__info,
+.um-user-cell > div {
+  min-width: 0;
+}
+
+.header__right {
+  margin-left: auto;
+}
+
+.header__back-btn,
+.header__menu-btn,
+.header__notification,
+.header__profile-avatar,
+.header__logout-btn,
+.modal__close,
+.sm__close,
+.um-actions-btn,
+.um-pagination__btn {
+  flex: 0 0 auto;
+}
+
+.notifications-dropdown,
+.header__search-dropdown,
+.modal,
+.sm,
+.um-profile-drawer {
+  max-width: calc(100vw - 24px);
+}
+
+.attendance-table-wrap,
+.um-table-scroll,
+.upload-table-wrapper,
+.table-wrap,
+.schedule-command,
+.schedule-board,
+.dp-filter-bar__filters {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-inline: contain;
+}
+
+.attendance-table,
+.um-table,
+.upload-table {
+  width: 100%;
+}
+
+.btn,
+.filter-chip,
+.um-chip,
+.schedule-day,
+.sched-day,
+.sm__day-chip,
+.attendance-tabs button {
+  min-width: 0;
+}
+
+.btn svg,
+.filter-chip svg,
+.um-chip svg,
+.sidebar__nav-icon,
+.attendance-kicker svg,
+.schedule-kicker svg {
+  flex: 0 0 auto;
+}
+
+.modal-overlay,
+.sm-overlay {
+  min-width: 0;
+}
+
+.modal,
+.sm {
+  overscroll-behavior: contain;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .page {
+    animation: routeFadeIn 180ms ease-out both;
+  }
+
+  .attendance-panel,
+  .schedule-board,
+  .schedule-card,
+  .dp-card,
+  .dp-managed-card,
+  .um-table-wrap,
+  .um-metric,
+  .modal,
+  .sm {
+    transition:
+      transform 180ms ease,
+      box-shadow 180ms ease,
+      border-color 180ms ease,
+      background-color 180ms ease;
+  }
+}
+
+@keyframes routeFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 1024px) {
+  .app__content {
+    padding: 22px 20px;
+  }
+
+  .header__search {
+    width: min(260px, 32vw);
+  }
+
+  .header__search--expanded {
+    width: min(360px, 44vw);
+  }
+}
+
+@media (max-width: 768px) {
+  .app {
+    display: block;
+  }
+
+  .app__main {
+    width: 100%;
+    margin-left: 0 !important;
+  }
+
+  .app__content {
+    padding: 16px 14px calc(18px + env(safe-area-inset-bottom)) !important;
+    overflow-x: hidden;
+  }
+
+  .header {
+    gap: 10px;
+    padding-inline: 14px !important;
+  }
+
+  .header__left {
+    flex: 0 0 auto;
+  }
+
+  .header__right {
+    gap: 8px;
+  }
+
+  .header__menu-btn,
+  .header__notification,
+  .header__profile-avatar,
+  .header__logout-btn {
+    width: 38px !important;
+    height: 38px !important;
+    padding: 0 !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .header__back-btn {
+    width: 38px;
+    height: 38px;
+    padding: 0 !important;
+    justify-content: center;
+  }
+
+  .header__back-btn span {
+    display: none;
+  }
+
+  .sidebar {
+    width: min(86vw, 320px) !important;
+    max-width: 100vw;
+  }
+
+  .sidebar__nav {
+    padding-bottom: calc(18px + env(safe-area-inset-bottom));
+  }
+
+  .notifications-dropdown {
+    position: fixed !important;
+    top: calc(var(--header-height) + 8px) !important;
+    right: 12px !important;
+    left: 12px !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: calc(100dvh - var(--header-height) - 20px);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .notifications-dropdown__list {
+    max-height: min(360px, calc(100dvh - var(--header-height) - 142px));
+  }
+
+  .header__search-dropdown {
+    position: fixed !important;
+    top: calc(var(--header-height) + 8px) !important;
+    right: 12px !important;
+    left: 12px !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+
+  .search-result-item,
+  .notification-item {
+    gap: 12px;
+    padding-inline: 14px;
+  }
+
+  .page,
+  .attendance-page,
+  .schedule-page,
+  .um-page {
+    gap: 18px;
+  }
+
+  .page__header,
+  .um-page__header,
+  .attendance-hero,
+  .schedule-hero,
+  .dp-section__header,
+  .schedule-board__head,
+  .attendance-panel__head {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    gap: 14px !important;
+  }
+
+  .schedule-hero,
+  .attendance-hero,
+  .dp-hero {
+    border-radius: 16px !important;
+    padding: 18px !important;
+  }
+
+  .schedule-hero h2,
+  .attendance-hero h2,
+  .dp-hero__text h2 {
+    font-size: 22px !important;
+    line-height: 1.18;
+  }
+
+  .schedule-hero__controls,
+  .attendance-hero__actions,
+  .um-page__header-actions,
+  .dp-hero__actions,
+  .page__toolbar,
+  .um-toolbar,
+  .attendance-manual-toolbar {
+    width: 100%;
+    align-items: stretch !important;
+  }
+
+  .schedule-hero__controls,
+  .attendance-hero__actions,
+  .um-page__header-actions,
+  .um-toolbar__actions,
+  .dp-hero__actions,
+  .attendance-manual-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .schedule-switch,
+  .schedule-add-btn,
+  .attendance-hero__actions .btn,
+  .um-page__header-actions .btn,
+  .dp-hero__actions .btn {
+    flex: 1 1 160px;
+    justify-content: center;
+  }
+
+  .schedule-days,
+  .sched-days,
+  .sm__day-row,
+  .attendance-tabs,
+  .um-toolbar__filters,
+  .page__filters {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+
+  .schedule-day,
+  .sched-day {
+    flex: 0 0 112px;
+  }
+
+  .attendance-tabs button {
+    flex: 0 0 auto;
+    min-width: 150px;
+    white-space: nowrap;
+  }
+
+  .filter-chip,
+  .um-chip {
+    flex: 0 0 auto;
+  }
+
+  .schedule-insights,
+  .attendance-metrics,
+  .um-metrics,
+  .um-stats,
+  .dp-hero__stats,
+  .attendance-live-grid,
+  .attendance-class-grid,
+  .attendance-record-grid,
+  .schedule-card__details,
+  .profile-layout,
+  .profile-details-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .schedule-card,
+  .sched-card,
+  .um-card,
+  .attendance-roster__row {
+    align-items: stretch;
+  }
+
+  .schedule-card__body,
+  .sched-card__body,
+  .schedule-card__main,
+  .schedule-card__details,
+  .schedule-card__actions,
+  .um-card__meta,
+  .attendance-roster__row {
+    min-width: 0;
+  }
+
+  .schedule-card__actions,
+  .dp-managed-card__actions,
+  .um-toolbar__actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .modal-overlay,
+  .sm-overlay {
+    padding: 10px !important;
+    align-items: flex-end !important;
+  }
+
+  .modal,
+  .sm {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: calc(100dvh - 20px) !important;
+    border-radius: 16px !important;
+  }
+
+  .logout-modal {
+    margin: 10px !important;
+    max-width: calc(100vw - 20px) !important;
+  }
+
+  .sm__body,
+  .dp-editor-body {
+    max-height: calc(100dvh - 220px) !important;
+    overflow-y: auto;
+  }
+
+  .sm__row,
+  .sm__row--3,
+  .sm__time-row,
+  .form-row,
+  .dp-subject-form {
+    grid-template-columns: 1fr !important;
+  }
+
+  .sm__types,
+  .dp-subject-types {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .sm__foot,
+  .modal__actions,
+  .logout-modal__actions,
+  .um-pagination,
+  .um-bulk-bar {
+    flex-wrap: wrap;
+  }
+
+  .profile-card {
+    padding: 22px !important;
+  }
+
+  .profile-avatar-wrap {
+    width: 96px !important;
+    height: 96px !important;
+    font-size: 32px !important;
+  }
+
+  .auth-page {
+    min-height: 100dvh;
+    padding: 14px !important;
+  }
+
+  .auth-card {
+    width: min(100%, 460px) !important;
+    max-width: 100% !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .app__content {
+    padding: 12px 10px calc(16px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .header {
+    height: 56px !important;
+    padding-inline: 10px !important;
+  }
+
+  .header__right {
+    gap: 6px;
+  }
+
+  .header__menu-btn,
+  .header__notification,
+  .header__profile-avatar,
+  .header__logout-btn,
+  .header__back-btn {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  .sidebar {
+    width: 100vw !important;
+  }
+
+  .sidebar__header {
+    padding: 18px 16px;
+  }
+
+  .sidebar__logo-text h1 {
+    font-size: 16px !important;
+  }
+
+  .page,
+  .attendance-page,
+  .schedule-page,
+  .um-page {
+    gap: 16px;
+  }
+
+  .btn {
+    white-space: normal;
+    justify-content: center;
+  }
+
+  .schedule-hero,
+  .attendance-hero,
+  .dp-hero {
+    padding: 16px !important;
+  }
+
+  .schedule-hero h2,
+  .attendance-hero h2,
+  .dp-hero__text h2 {
+    font-size: 20px !important;
+  }
+
+  .schedule-hero__meta,
+  .attendance-hero__actions,
+  .dp-hero__actions,
+  .um-page__header-actions,
+  .modal__actions,
+  .logout-modal__actions {
+    flex-direction: column;
+  }
+
+  .schedule-hero__meta span,
+  .attendance-hero__actions .btn,
+  .dp-hero__actions .btn,
+  .um-page__header-actions .btn,
+  .modal__actions .btn,
+  .logout-modal__actions .btn {
+    width: 100%;
+  }
+
+  .attendance-table,
+  .um-table,
+  .upload-table {
+    min-width: 680px;
+  }
+
+  .attendance-qr-frame,
+  .attendance-scanner,
+  .attendance-scan-box {
+    width: 100%;
+  }
+
+  .attendance-scan-box__target {
+    min-height: 220px;
+  }
+
+  .sm__types,
+  .dp-subject-types,
+  .um-metrics,
+  .um-stats,
+  .dp-hero__stats {
+    grid-template-columns: 1fr !important;
+  }
+
+  .um-card {
+    flex-direction: column;
+  }
+
+  .um-card__actions,
+  .um-card__status {
+    align-self: stretch;
+  }
+
+  .um-pagination {
+    gap: 10px;
+  }
+
+  .um-pagination__info,
+  .um-pagination__controls {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .profile-card {
+    padding: 18px !important;
+  }
+
+  .empty-state {
+    padding: 42px 18px;
+  }
+}
+
+@media (max-width: 380px) {
+  .app__content {
+    padding-inline: 8px !important;
+  }
+
+  .dash__actions,
+  .dashboard__actions,
+  .schedule-insights,
+  .attendance-metrics,
+  .um-metrics {
+    grid-template-columns: 1fr !important;
+  }
+
+  .schedule-day,
+  .sched-day {
+    flex-basis: 96px;
+  }
+
+  .attendance-tabs button {
+    min-width: 132px;
+  }
+}

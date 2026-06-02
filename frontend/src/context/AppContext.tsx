@@ -105,15 +105,83 @@ const notifyNotificationsChanged = () => {
   window.dispatchEvent(new Event('smart-campus-notifications-updated'));
 };
 
+const PAGE_STORAGE_KEY = 'smart-campus-current-page';
+
+const validPages: PageType[] = [
+  'dashboard',
+  'notices',
+  'feedback',
+  'skills',
+  'rooms',
+  'grievances',
+  'attendance',
+  'admin_upload',
+  'schedule',
+  'departments',
+  'department_detail',
+  'course_detail',
+  'profile',
+  'notifications',
+];
+
+const isPageType = (value: string | null | undefined): value is PageType =>
+  Boolean(value && validPages.includes(value as PageType));
+
+const getHashPage = (): PageType | null => {
+  if (typeof window === 'undefined') return null;
+  const value = window.location.hash.replace(/^#\/?/, '').trim();
+  return isPageType(value) ? value : null;
+};
+
+const getStoredPage = (): PageType | null => {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const value = window.localStorage.getItem(PAGE_STORAGE_KEY);
+    return isPageType(value) ? value : null;
+  } catch {
+    return null;
+  }
+};
+
+const persistPage = (page: PageType) => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.localStorage.setItem(PAGE_STORAGE_KEY, page);
+  } catch {
+    // Local storage can be unavailable in restricted browser contexts.
+  }
+};
+
+const writePageRoute = (page: PageType, replace = false) => {
+  if (typeof window === 'undefined') return;
+
+  persistPage(page);
+  const nextHash = `#/${page}`;
+  if (window.location.hash === nextHash) return;
+
+  if (replace) {
+    window.history.replaceState(null, '', nextHash);
+  } else {
+    window.history.pushState(null, '', nextHash);
+  }
+};
+
+const getInitialPage = (): PageType => getHashPage() ?? getStoredPage() ?? 'dashboard';
+
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [currentPage, setCurrentPageInternal] = useState<PageType>('dashboard');
+  const [currentPage, setCurrentPageInternal] = useState<PageType>(() => getInitialPage());
   const [history, setHistory] = useState<PageType[]>([]);
   
   const setCurrentPage = useCallback((page: PageType) => {
     setCurrentPageInternal((prev) => {
+      writePageRoute(page, prev === page);
+
       if (prev !== page) {
-        setHistory((h) => [...h, prev]);
+        setHistory((h) => [...h, prev].slice(-25));
       }
+
       return page;
     });
   }, []);
@@ -123,6 +191,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (h.length === 0) return h;
       const newHistory = [...h];
       const previousPage = newHistory.pop()!;
+      writePageRoute(previousPage);
       setCurrentPageInternal(previousPage);
       return newHistory;
     });
@@ -158,6 +227,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const refreshSchedule = useCallback(async () => {
     const nextSchedule = await retryRequest(() => api.schedule.list());
     setSchedule(nextSchedule);
+  }, []);
+
+  useEffect(() => {
+    writePageRoute(currentPage, true);
+    // The initial URL sync should only run once after the provider mounts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const handleRouteChange = () => {
+      const routePage = getHashPage();
+      if (!routePage) {
+        writePageRoute('dashboard', true);
+        setCurrentPageInternal('dashboard');
+        return;
+      }
+
+      persistPage(routePage);
+      setCurrentPageInternal(routePage);
+    };
+
+    window.addEventListener('hashchange', handleRouteChange);
+    window.addEventListener('popstate', handleRouteChange);
+
+    return () => {
+      window.removeEventListener('hashchange', handleRouteChange);
+      window.removeEventListener('popstate', handleRouteChange);
+    };
   }, []);
 
   useEffect(() => {
