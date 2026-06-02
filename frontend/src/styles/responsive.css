@@ -1199,6 +1199,71 @@ h6,
     border-radius: 24px 24px 18px 18px !important;
   }
 
+  .schedule-modal {
+    height: calc(100dvh - 20px) !important;
+    max-height: calc(100dvh - 20px) !important;
+    display: flex !important;
+    overflow: hidden !important;
+    border-radius: 24px 24px 0 0 !important;
+  }
+
+  .schedule-modal .sm__head {
+    padding: 16px !important;
+  }
+
+  .schedule-modal .sm__head-icon {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .schedule-modal .sm__head h3 {
+    font-size: 17px !important;
+  }
+
+  .schedule-modal__head-meta {
+    gap: 5px;
+  }
+
+  .schedule-modal__head-meta span {
+    min-height: 20px;
+    padding: 2px 8px;
+    font-size: 10px !important;
+  }
+
+  .schedule-modal__scroll {
+    min-height: 0;
+    overflow-y: auto !important;
+    padding-bottom: 14px;
+  }
+
+  .schedule-modal__preview {
+    margin: 14px 14px 12px !important;
+    padding: 14px !important;
+    border-radius: 18px !important;
+  }
+
+  .schedule-modal .sm__body {
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 14px !important;
+    gap: 12px;
+  }
+
+  .schedule-modal__section-card {
+    padding: 14px !important;
+    border-radius: 18px !important;
+  }
+
+  .schedule-modal .sm__foot {
+    padding: 12px 14px calc(12px + env(safe-area-inset-bottom)) !important;
+    gap: 8px;
+  }
+
+  .schedule-modal .sm__foot .btn {
+    flex: 1 1 140px;
+    min-height: 44px;
+  }
+
   .logout-modal {
     margin: 10px !important;
     max-width: calc(100vw - 20px) !important;
@@ -1352,6 +1417,20 @@ h6,
   .sm__types,
   .dp-subject-types {
     grid-template-columns: 1fr !important;
+  }
+
+  .schedule-modal .sm__types {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .schedule-modal .sm__time-row {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .schedule-modal .atp,
+  .schedule-modal .atp__box {
+    width: 100%;
   }
 
   .dash__stats,

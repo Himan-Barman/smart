@@ -577,21 +577,30 @@ const SchedulePage: React.FC = () => {
             <div className="sm__head">
               <div className="sm__head-left">
                 <div className="sm__head-icon"><CalendarDays size={18} /></div>
-                <div><h3>{editingId ? 'Edit Class' : 'New Class Slot'}</h3><span>{form.day} / {form.startTime}-{form.endTime}</span></div>
+                <div className="schedule-modal__head-text">
+                  <span className="schedule-modal__eyebrow">{role === 'admin' ? 'Admin scheduler' : 'Class scheduler'}</span>
+                  <h3>{editingId ? 'Edit Class' : 'New Class Slot'}</h3>
+                  <div className="schedule-modal__head-meta">
+                    <span>{form.day}</span>
+                    <span>{form.startTime}-{form.endTime}</span>
+                    {durationMin > 0 && <span>{formatHours(durationMin)}</span>}
+                  </div>
+                </div>
               </div>
               <button className="sm__close" onClick={() => setShowForm(false)}><X size={18} /></button>
             </div>
 
-            <div className="sm__preview schedule-modal__preview" style={{ borderLeftColor: TYPE_COLORS[form.type] }}>
-              <div className="sm__preview-time"><Clock size={12} /> {form.startTime} - {form.endTime}
-                {durationMin > 0 && <span className="sm__preview-dur">{formatHours(durationMin)}</span>}
+            <div className="schedule-modal__scroll">
+              <div className="sm__preview schedule-modal__preview" style={{ borderLeftColor: TYPE_COLORS[form.type] }}>
+                <div className="sm__preview-time"><Clock size={12} /> {form.startTime} - {form.endTime}
+                  {durationMin > 0 && <span className="sm__preview-dur">{formatHours(durationMin)}</span>}
+                </div>
+                <strong>{form.subject || 'Subject Name'}</strong>
+                <span>{form.courseCode || 'CODE'} / {form.room || 'Room'} / {form.day}</span>
               </div>
-              <strong>{form.subject || 'Subject Name'}</strong>
-              <span>{form.courseCode || 'CODE'} / {form.room || 'Room'} / {form.day}</span>
-            </div>
 
-            <div className="sm__body">
-              <div className="sm__section">
+              <div className="sm__body">
+              <div className="sm__section schedule-modal__section-card">
                 <label className="sm__section-label">Class Type</label>
                 <div className="sm__types">
                   {TYPE_META.map((item) => {
@@ -613,7 +622,7 @@ const SchedulePage: React.FC = () => {
               </div>
 
               {role === 'admin' && (
-                <div className="sm__section">
+                <div className="sm__section schedule-modal__section-card">
                   <label className="sm__section-label">Department Info</label>
                   <div className="sm__row sm__row--3">
                     <SuggestInput
@@ -646,7 +655,7 @@ const SchedulePage: React.FC = () => {
                 </div>
               )}
 
-              <div className="sm__section">
+              <div className="sm__section schedule-modal__section-card">
                 <label className="sm__section-label">
                   Subject Details
                   {subjectOptions.length > 0 && <span className="sm__section-badge">{subjectOptions.length} available</span>}
@@ -676,7 +685,7 @@ const SchedulePage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="sm__section">
+              <div className="sm__section schedule-modal__section-card">
                 <label className="sm__section-label">Day & Time <span className="sm__section-badge">08:00-18:00</span></label>
                 <div className="sm__day-row">
                   {DAYS.map((day) => (
@@ -696,7 +705,7 @@ const SchedulePage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="sm__section">
+              <div className="sm__section schedule-modal__section-card">
                 <label className="sm__section-label">Venue & Faculty</label>
                 <div className="sm__row">
                   <SuggestInput
@@ -720,6 +729,7 @@ const SchedulePage: React.FC = () => {
                     emptyText="No faculty found"
                   />
                 </div>
+              </div>
               </div>
             </div>
 
