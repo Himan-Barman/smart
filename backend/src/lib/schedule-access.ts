@@ -1,4 +1,5 @@
 import type { ScheduleSlot } from '@prisma/client';
+import { withDbReadRetry } from './db-read-retry.js';
 import { departmentsMatch, normalizeDepartmentKey } from './department-matching.js';
 import { mapper } from './mappers.js';
 import { prisma } from './prisma.js';
@@ -39,20 +40,22 @@ const findAllScheduleSlots = (): Promise<ScheduleSlot[]> =>
   `;
 
 export const findScheduleForUser = async (userId: string, authRole: AuthRole) => {
-  const [user, departments, slots] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        role: true,
-        department: true,
-        employeeId: true,
-        semester: true,
-      },
-    }),
-    prisma.department.findMany({ select: { name: true, code: true, course: true } }),
-    findAllScheduleSlots(),
-  ]);
+  const [user, departments, slots] = await withDbReadRetry('schedule read', () =>
+    Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          role: true,
+          department: true,
+          employeeId: true,
+          semester: true,
+        },
+      }),
+      prisma.department.findMany({ select: { name: true, code: true, course: true } }),
+      findAllScheduleSlots(),
+    ]),
+  );
 
   if (!user) return [];
 

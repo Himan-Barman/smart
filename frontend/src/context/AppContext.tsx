@@ -75,6 +75,29 @@ const getToday = () => new Date().toISOString().split('T')[0] ?? '';
 const replaceById = <T extends { id: string }>(items: T[], id: string, next: T): T[] =>
   items.map((item) => (item.id === id ? next : item));
 
+const wait = (ms: number): Promise<void> => new Promise((resolve) => {
+  window.setTimeout(resolve, ms);
+});
+
+const retryRequest = async <T,>(
+  operation: () => Promise<T>,
+  delays: number[] = [500, 1200, 2500],
+): Promise<T> => {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= delays.length; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (attempt === delays.length) break;
+      await wait(delays[attempt]);
+    }
+  }
+
+  throw lastError;
+};
+
 const notifyNotificationsChanged = () => {
   window.dispatchEvent(new Event('smart-campus-notifications-updated'));
 };
@@ -130,7 +153,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const refreshSchedule = useCallback(async () => {
-    const nextSchedule = await api.schedule.list();
+    const nextSchedule = await retryRequest(() => api.schedule.list());
     setSchedule(nextSchedule);
   }, []);
 

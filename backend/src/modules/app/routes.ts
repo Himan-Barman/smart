@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { asyncHandler } from '../../lib/async-handler.js';
+import { withDbReadRetry } from '../../lib/db-read-retry.js';
 import { getManagedUserData, type ManagedUserData } from '../../lib/managed-users.js';
 import { prisma } from '../../lib/prisma.js';
 import { findScheduleForUser } from '../../lib/schedule-access.js';
@@ -21,7 +22,7 @@ const safeBootstrapQuery = async <T>(
   fallback: T,
 ): Promise<T> => {
   try {
-    return await query();
+    return await withDbReadRetry(`bootstrap ${label}`, query);
   } catch (error) {
     console.error(`Bootstrap ${label} query failed`, error);
     return fallback;

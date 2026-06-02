@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { asyncHandler } from '../../lib/async-handler.js';
+import { withDbReadRetry } from '../../lib/db-read-retry.js';
 import { HttpError } from '../../lib/errors.js';
 import { prisma } from '../../lib/prisma.js';
 import { serializer } from '../../lib/serializers.js';
@@ -12,10 +13,12 @@ notificationRouter.use(requireAuth);
 notificationRouter.get(
   '/',
   asyncHandler(async (req, res) => {
-    const notifications = await prisma.notification.findMany({
-      where: { userId: req.auth!.userId },
-      orderBy: { date: 'desc' },
-    });
+    const notifications = await withDbReadRetry('notification read', () =>
+      prisma.notification.findMany({
+        where: { userId: req.auth!.userId },
+        orderBy: { date: 'desc' },
+      }),
+    );
 
     res.json(notifications.map((notification) => serializer.notification(notification)));
   }),
