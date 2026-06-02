@@ -59,7 +59,7 @@ const Sidebar: React.FC = () => {
         <div className="sidebar__header">
           <div className="sidebar__logo">
             <div className="sidebar__logo-icon">
-              <GraduationCap size={28} />
+              <GraduationCap size={32} />
             </div>
             <div className="sidebar__logo-text">
               <h1>Smart Campus</h1>
