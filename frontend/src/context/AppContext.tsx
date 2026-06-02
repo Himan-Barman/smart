@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import type {
   Notice,
   Feedback,
@@ -210,6 +210,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [attendanceSession, setAttendanceSession] = useState<AttendanceSession | null>(null);
   const [schedule, setSchedule] = useState<ScheduleSlot[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const activePollInFlightRef = useRef(false);
+  const activePollNextAtRef = useRef(0);
+  const activePollFailuresRef = useRef(0);
 
   const refreshAppData = useCallback(async () => {
     const data = await api.app.bootstrap();
@@ -279,9 +282,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     const refresh = () => {
+      if (activePollInFlightRef.current || Date.now() < activePollNextAtRef.current) return;
+
+      activePollInFlightRef.current = true;
       void api.attendance.getActive().then((session) => {
+        activePollFailuresRef.current = 0;
+        activePollNextAtRef.current = 0;
         setAttendanceSession(session);
-      }).catch(() => {});
+      }).catch(() => {
+        activePollFailuresRef.current += 1;
+        activePollNextAtRef.current = Date.now() + Math.min(30_000, activePollFailuresRef.current * 5_000);
+      }).finally(() => {
+        activePollInFlightRef.current = false;
+      });
     };
 
     const interval = window.setInterval(refresh, 5000);

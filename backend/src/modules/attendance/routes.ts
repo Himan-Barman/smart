@@ -24,6 +24,7 @@ import { requireAuth, requireRole } from '../../middleware/auth.js';
 export const attendanceRouter = Router();
 
 const QR_GRACE_MS = 10_000;
+const QR_HISTORY_LIMIT = 6;
 
 attendanceRouter.use(requireAuth);
 attendanceRouter.use(asyncHandler(async (_req, _res, next) => {
@@ -195,7 +196,23 @@ const closeExistingSessionsForScope = async (scope: AttendanceScope, teacherId: 
 
 const appendQrHistory = (historyValue: string | null, qr: string): string => {
   const history = serializer.toSubjectList(historyValue) ?? [];
-  return serializer.fromSubjectList([...history, qr].slice(-120)) ?? qr;
+  return serializer.fromSubjectList([...history, qr].slice(-QR_HISTORY_LIMIT)) ?? qr;
+};
+
+const rotateAttendanceQr = async (id: string) => {
+  const existing = await prisma.attendanceSession.findUnique({ where: { id } });
+  if (!existing) throw new HttpError(404, 'Attendance session not found');
+
+  const qr = randomQr(existing.id);
+  return prisma.attendanceSession.update({
+    where: { id },
+    data: {
+      currentQR: qr,
+      qrHistory: appendQrHistory(existing.qrHistory, qr),
+      qrExpiresAt: nextQrExpiry(),
+    },
+    include: { attendees: true },
+  });
 };
 
 const academicYearFor = (date: Date): string => {
@@ -324,7 +341,20 @@ const findRosterStudent = async (
 attendanceRouter.get(
   '/session/active',
   asyncHandler(async (req, res) => {
-    const session = await findActiveAttendanceSessionForUser(req.auth!.userId, req.auth!.role);
+    let session = await findActiveAttendanceSessionForUser(req.auth!.userId, req.auth!.role);
+    if (
+      session &&
+      req.auth!.role !== 'student' &&
+      session.isActive &&
+      session.mode.toUpperCase() !== 'MANUAL' &&
+      (!session.qrExpiresAt || session.qrExpiresAt.getTime() <= Date.now())
+    ) {
+      const user = await getCurrentAttendanceUser(req.auth!.userId);
+      if (await sessionCanBeManagedBy(user, session)) {
+        session = await rotateAttendanceQr(session.id);
+      }
+    }
+
     res.json(session ? serializer.attendanceSession(session, session.attendees) : null);
   }),
 );
@@ -436,16 +466,7 @@ attendanceRouter.post(
     if (!await sessionCanBeManagedBy(user, existing)) throw new HttpError(403, 'You cannot refresh this session.');
     if (!existing.isActive) throw new HttpError(400, 'Attendance session is not active');
 
-    const qr = randomQr(existing.id);
-    const updated = await prisma.attendanceSession.update({
-      where: { id },
-      data: {
-        currentQR: qr,
-        qrHistory: appendQrHistory(existing.qrHistory, qr),
-        qrExpiresAt: nextQrExpiry(),
-      },
-      include: { attendees: true },
-    });
+    const updated = await rotateAttendanceQr(existing.id);
 
     res.json(serializer.attendanceSession(updated, updated.attendees));
   }),

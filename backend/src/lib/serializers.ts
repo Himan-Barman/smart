@@ -61,6 +61,9 @@ const fromSubjectList = (subjects?: string[]): string | undefined => {
   return subjects.join(',');
 };
 
+const lowerOr = <T extends string>(value: string | null | undefined, fallback: T): string =>
+  (value?.trim() || fallback).toLowerCase();
+
 export const serializer = {
   toSubjectList,
   fromSubjectList,
@@ -201,7 +204,7 @@ export const serializer = {
       semester: session.semester ?? undefined,
       course: session.course ?? undefined,
       section: session.section ?? undefined,
-      mode: session.mode.toLowerCase() as 'qr' | 'manual' | 'hybrid',
+      mode: lowerOr(session.mode, 'QR') as 'qr' | 'manual' | 'hybrid',
       date: mapper.date(session.date),
       startTime: session.startTime,
       duration: session.duration,
@@ -216,8 +219,8 @@ export const serializer = {
         timestamp: attendee.timestamp,
         qrCode: attendee.qrCode ?? undefined,
         verified: attendee.verified,
-        status: attendee.status.toLowerCase() as 'present' | 'absent',
-        mode: attendee.mode.toLowerCase() as 'qr' | 'manual',
+        status: lowerOr(attendee.status, 'PRESENT') as 'present' | 'absent',
+        mode: lowerOr(attendee.mode, 'QR') as 'qr' | 'manual',
         department: attendee.department ?? undefined,
         academicYear: attendee.academicYear ?? undefined,
         year: attendee.year ?? undefined,

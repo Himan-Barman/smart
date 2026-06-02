@@ -29,6 +29,9 @@ import type { AttendanceRosterStudent, AttendanceSession, DayOfWeek, ScheduleSlo
 const DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const QR_REFRESH_INTERVAL_MS = 10_000;
 const QR_REFRESH_SECONDS = QR_REFRESH_INTERVAL_MS / 1000;
+const QR_REFRESH_LEAD_SECONDS = 1;
+const QR_REFRESH_RETRY_MS = 2_500;
+const QR_COUNTDOWN_TICK_MS = 250;
 
 const normalize = (value?: string | null): string => (value ?? '').trim().toLowerCase();
 
@@ -279,6 +282,8 @@ const TeacherAttendanceView: React.FC = () => {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(qrSecondsLeft(attendanceSession));
+  const refreshInFlightRef = useRef(false);
+  const lastRefreshAttemptRef = useRef(0);
 
   const teacherSlots = useMemo(() => sortSlots(schedule), [schedule]);
   const today = todayName();
@@ -311,6 +316,24 @@ const TeacherAttendanceView: React.FC = () => {
     });
   }, []);
 
+  const refreshActiveQr = useCallback(async () => {
+    const sessionId = activeSession?.id;
+    if (!sessionId || refreshInFlightRef.current) return;
+
+    refreshInFlightRef.current = true;
+    lastRefreshAttemptRef.current = Date.now();
+
+    try {
+      const refreshed = await refreshAttendanceSession(sessionId);
+      setSecondsLeft(qrSecondsLeft(refreshed));
+      setError('');
+    } catch (refreshError) {
+      setError(refreshError instanceof Error ? refreshError.message : 'Unable to refresh QR code');
+    } finally {
+      refreshInFlightRef.current = false;
+    }
+  }, [activeSession?.id, refreshAttendanceSession]);
+
   useEffect(() => {
     if (!selectedSlotId && (todaySlots[0] || teacherSlots[0])) {
       setSelectedSlotId((todaySlots[0] ?? teacherSlots[0]).id);
@@ -331,24 +354,28 @@ const TeacherAttendanceView: React.FC = () => {
   }, [selectedSlotId, loadRoster]);
 
   useEffect(() => {
-    setSecondsLeft(qrSecondsLeft(activeSession));
-    const countdown = window.setInterval(() => {
-      setSecondsLeft(qrSecondsLeft(activeSession));
-    }, 500);
-    return () => window.clearInterval(countdown);
-  }, [activeSession]);
+    if (!activeSession?.isActive || activeSession.mode === 'manual') {
+      setSecondsLeft(0);
+      return undefined;
+    }
 
-  useEffect(() => {
-    if (!activeSession?.isActive || activeSession.mode === 'manual') return undefined;
+    const tick = () => {
+      const nextSeconds = qrSecondsLeft(activeSession);
+      setSecondsLeft(nextSeconds);
 
-    const interval = window.setInterval(() => {
-      void refreshAttendanceSession(activeSession.id).catch((refreshError) => {
-        setError(refreshError instanceof Error ? refreshError.message : 'Unable to refresh QR code');
-      });
-    }, QR_REFRESH_INTERVAL_MS);
+      if (
+        nextSeconds <= QR_REFRESH_LEAD_SECONDS &&
+        Date.now() - lastRefreshAttemptRef.current >= QR_REFRESH_RETRY_MS
+      ) {
+        void refreshActiveQr();
+      }
+    };
+
+    tick();
+    const interval = window.setInterval(tick, QR_COUNTDOWN_TICK_MS);
 
     return () => window.clearInterval(interval);
-  }, [activeSession?.id, activeSession?.isActive, activeSession?.mode, refreshAttendanceSession]);
+  }, [activeSession, refreshActiveQr]);
 
   const startQrSession = async (slot: ScheduleSlot) => {
     setBusy(true);
@@ -685,7 +712,7 @@ const StudentAttendanceView: React.FC = () => {
     setSecondsLeft(qrSecondsLeft(activeSession));
     const countdown = window.setInterval(() => {
       setSecondsLeft(qrSecondsLeft(activeSession));
-    }, 500);
+    }, QR_COUNTDOWN_TICK_MS);
     return () => window.clearInterval(countdown);
   }, [activeSession]);
 

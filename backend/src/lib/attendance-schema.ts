@@ -21,12 +21,21 @@ const ensureAttendanceColumns = async (): Promise<void> => {
   await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceSession" ADD COLUMN IF NOT EXISTS "course" TEXT;');
   await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceSession" ADD COLUMN IF NOT EXISTS "section" TEXT;');
   await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceSession" ADD COLUMN IF NOT EXISTS "mode" TEXT NOT NULL DEFAULT \'QR\';');
+  await prisma.$executeRawUnsafe('UPDATE "AttendanceSession" SET "mode" = \'QR\' WHERE "mode" IS NULL OR "mode" = \'\';');
+  await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceSession" ALTER COLUMN "mode" SET DEFAULT \'QR\';');
+  await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceSession" ALTER COLUMN "mode" SET NOT NULL;');
   await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceSession" ADD COLUMN IF NOT EXISTS "qrExpiresAt" TIMESTAMP(3);');
   await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceSession" ADD COLUMN IF NOT EXISTS "endedAt" TIMESTAMP(3);');
 
   await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ALTER COLUMN "qrCode" DROP NOT NULL;');
   await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT \'PRESENT\';');
+  await prisma.$executeRawUnsafe('UPDATE "AttendanceRecord" SET "status" = \'PRESENT\' WHERE "status" IS NULL OR "status" = \'\';');
+  await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ALTER COLUMN "status" SET DEFAULT \'PRESENT\';');
+  await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ALTER COLUMN "status" SET NOT NULL;');
   await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ADD COLUMN IF NOT EXISTS "mode" TEXT NOT NULL DEFAULT \'QR\';');
+  await prisma.$executeRawUnsafe('UPDATE "AttendanceRecord" SET "mode" = \'QR\' WHERE "mode" IS NULL OR "mode" = \'\';');
+  await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ALTER COLUMN "mode" SET DEFAULT \'QR\';');
+  await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ALTER COLUMN "mode" SET NOT NULL;');
   await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ADD COLUMN IF NOT EXISTS "department" TEXT;');
   await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ADD COLUMN IF NOT EXISTS "academicYear" TEXT;');
   await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ADD COLUMN IF NOT EXISTS "year" INTEGER;');
