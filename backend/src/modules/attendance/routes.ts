@@ -8,10 +8,12 @@ import {
   findAttendanceSessionsForUser,
   getAttendanceUser,
   publicStudentId,
+  roleOf,
   scheduleCanBeManagedBy,
   sessionCanBeManagedBy,
   studentMatchesSession,
   type AttendanceUser,
+  type AttendanceSessionWithRecords,
 } from '../../lib/attendance-access.js';
 import { ensureAttendanceSchema } from '../../lib/attendance-schema.js';
 import { asyncHandler } from '../../lib/async-handler.js';
@@ -25,6 +27,8 @@ export const attendanceRouter = Router();
 
 const QR_GRACE_MS = 10_000;
 const QR_HISTORY_LIMIT = 6;
+const CAMPUS_UTC_OFFSET_MINUTES = 330;
+const CAMPUS_TIME_ZONE = 'Asia/Kolkata';
 let attendanceSchemaWarningShown = false;
 
 attendanceRouter.use(requireAuth);
@@ -44,6 +48,53 @@ const nowTime = (): string =>
   new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 
 const nextQrExpiry = (): Date => new Date(Date.now() + QR_TTL_MS);
+
+const parseTimeToMinutes = (time?: string | null): number | null => {
+  const match = /^(\d{1,2}):(\d{2})/.exec(time ?? '');
+  if (!match) return null;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return null;
+  }
+
+  return hours * 60 + minutes;
+};
+
+const campusDateParts = (date: Date): { year: number; month: number; day: number } => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: CAMPUS_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return {
+    year: Number(byType.year),
+    month: Number(byType.month),
+    day: Number(byType.day),
+  };
+};
+
+const campusDateTimeToUtc = (
+  parts: { year: number; month: number; day: number },
+  minuteOfDay: number,
+): Date => {
+  const hours = Math.floor(minuteOfDay / 60);
+  const minutes = minuteOfDay % 60;
+  return new Date(Date.UTC(parts.year, parts.month - 1, parts.day, hours, minutes) - CAMPUS_UTC_OFFSET_MINUTES * 60_000);
+};
+
+const scheduledEndForSession = (
+  session: Pick<AttendanceSession, 'date'>,
+  schedule: Pick<ScheduleSlot, 'endTime'>,
+): Date | null => {
+  const endMinutes = parseTimeToMinutes(schedule.endTime);
+  if (endMinutes === null) return null;
+  return campusDateTimeToUtc(campusDateParts(session.date), endMinutes);
+};
 
 const randomQr = (sessionId?: string): string =>
   `SMARTCAMPUS|ATT|${sessionId ?? 'NEW'}|${Date.now()}|${randomUUID()}`;
@@ -170,7 +221,12 @@ const resolveStartScope = async (
   payload: z.infer<typeof startSchema>,
   user: AttendanceUser,
 ): Promise<AttendanceScope> => {
-  if (!payload.scheduleId) return payloadToScope(payload, user);
+  if (!payload.scheduleId) {
+    if (roleOf(user) === 'teacher') {
+      throw new HttpError(400, 'Teacher attendance must be linked to a scheduled class.');
+    }
+    return payloadToScope(payload, user);
+  }
 
   const schedule = await prisma.scheduleSlot.findUnique({ where: { id: payload.scheduleId } });
   if (!schedule) throw new HttpError(404, 'Schedule slot not found');
@@ -205,6 +261,36 @@ const closeExistingSessionsForScope = async (scope: AttendanceScope, teacherId: 
 const appendQrHistory = (historyValue: string | null, qr: string): string => {
   const history = serializer.toSubjectList(historyValue) ?? [];
   return serializer.fromSubjectList([...history, qr].slice(-QR_HISTORY_LIMIT)) ?? qr;
+};
+
+const autoStopSessionIfScheduledEndPassed = async <T extends Pick<
+  AttendanceSession,
+  'id' | 'isActive' | 'scheduleId' | 'date' | 'createdAt'
+> & { attendees?: AttendanceSessionWithRecords['attendees'] }>(
+  session: T,
+): Promise<AttendanceSessionWithRecords | T> => {
+  if (!session.isActive || !session.scheduleId) return session;
+
+  const schedule = await prisma.scheduleSlot.findUnique({
+    where: { id: session.scheduleId },
+    select: { endTime: true },
+  });
+
+  if (!schedule) return session;
+
+  const scheduledEnd = scheduledEndForSession(session, schedule);
+  if (!scheduledEnd || scheduledEnd.getTime() > Date.now()) return session;
+
+  const endedAt = new Date(Math.max(scheduledEnd.getTime(), session.createdAt.getTime()));
+  return prisma.attendanceSession.update({
+    where: { id: session.id },
+    data: {
+      isActive: false,
+      endedAt,
+      duration: Math.max(0, Math.round((endedAt.getTime() - session.createdAt.getTime()) / 60_000)),
+    },
+    include: { attendees: true },
+  });
 };
 
 const rotateAttendanceQr = async (id: string) => {
@@ -350,6 +436,14 @@ attendanceRouter.get(
   '/session/active',
   asyncHandler(async (req, res) => {
     let session = await findActiveAttendanceSessionForUser(req.auth!.userId, req.auth!.role);
+    if (session) {
+      session = await autoStopSessionIfScheduledEndPassed(session) as AttendanceSessionWithRecords;
+      if (!session.isActive) {
+        res.json(null);
+        return;
+      }
+    }
+
     if (
       session &&
       req.auth!.role !== 'student' &&
@@ -474,6 +568,13 @@ attendanceRouter.post(
     if (!await sessionCanBeManagedBy(user, existing)) throw new HttpError(403, 'You cannot refresh this session.');
     if (!existing.isActive) throw new HttpError(400, 'Attendance session is not active');
 
+    const autoStopped = await autoStopSessionIfScheduledEndPassed(existing);
+    if (!autoStopped.isActive) {
+      const attendees = 'attendees' in autoStopped ? autoStopped.attendees : [];
+      res.json(serializer.attendanceSession(autoStopped as AttendanceSession, attendees));
+      return;
+    }
+
     const updated = await rotateAttendanceQr(existing.id);
 
     res.json(serializer.attendanceSession(updated, updated.attendees));
@@ -494,18 +595,20 @@ attendanceRouter.post(
     });
 
     if (!session || !session.isActive) throw new HttpError(400, 'No active session');
+    const autoStopped = await autoStopSessionIfScheduledEndPassed(session) as AttendanceSessionWithRecords;
+    if (!autoStopped.isActive) throw new HttpError(400, 'This attendance session has ended.');
     if (!await studentMatchesSession(user, session)) throw new HttpError(403, 'This attendance session is not for your department and semester.');
     if (session.mode === 'MANUAL') throw new HttpError(400, 'This session is manual attendance only.');
-    if (!qrIsValidForSession(session, payload.qrCode)) throw new HttpError(400, 'QR code expired or invalid. Scan the latest QR.');
+    if (!qrIsValidForSession(autoStopped, payload.qrCode)) throw new HttpError(400, 'QR code expired or invalid. Scan the latest QR.');
 
     const studentId = publicStudentId(user);
-    const existing = session.attendees.find((attendee) => normalizeDepartmentKey(attendee.studentId) === normalizeDepartmentKey(studentId));
+    const existing = autoStopped.attendees.find((attendee) => normalizeDepartmentKey(attendee.studentId) === normalizeDepartmentKey(studentId));
     if (existing?.status === 'PRESENT') {
       res.json({
         success: true,
         message: 'Attendance already marked',
-        attendee: serializer.attendanceSession(session, [existing]).attendees[0],
-        session: serializer.attendanceSession(session, session.attendees),
+        attendee: serializer.attendanceSession(autoStopped, [existing]).attendees[0],
+        session: serializer.attendanceSession(autoStopped, autoStopped.attendees),
       });
       return;
     }
@@ -518,7 +621,7 @@ attendanceRouter.post(
       verified: true,
       status: 'PRESENT',
       mode: 'QR',
-      ...recordScopeFor(session),
+      ...recordScopeFor(autoStopped),
       markedById: user.id,
       markedAt: new Date(),
       userId: user.id,
@@ -542,7 +645,7 @@ attendanceRouter.post(
 
     res.json({
       success: true,
-      attendee: serializer.attendanceSession(session, [attendee]).attendees[0],
+      attendee: serializer.attendanceSession(autoStopped, [attendee]).attendees[0],
       session: updated ? serializer.attendanceSession(updated, updated.attendees) : undefined,
     });
   }),
@@ -559,6 +662,17 @@ attendanceRouter.post(
     const session = await prisma.attendanceSession.findUnique({ where: { id } });
     if (!session) throw new HttpError(404, 'Attendance session not found');
     if (!await sessionCanBeManagedBy(user, session)) throw new HttpError(403, 'You cannot mark this session.');
+    if (!session.isActive) throw new HttpError(400, 'Attendance session is not active.');
+    if (!session.scheduleId) throw new HttpError(400, 'Manual attendance must be linked to a scheduled class.');
+    if (!['MANUAL', 'HYBRID'].includes(session.mode.toUpperCase())) {
+      throw new HttpError(400, 'This session is not open for manual attendance.');
+    }
+
+    const schedule = await prisma.scheduleSlot.findUnique({ where: { id: session.scheduleId } });
+    if (!schedule) throw new HttpError(404, 'Schedule slot not found');
+    if (!scheduleCanBeManagedBy(user, schedule)) {
+      throw new HttpError(403, 'You can mark attendance only for your assigned scheduled class.');
+    }
 
     for (const record of payload.records) {
       const { rosterStudent, userId } = await findRosterStudent(session, record.studentId);
@@ -613,6 +727,10 @@ attendanceRouter.get(
   '/sessions',
   asyncHandler(async (req, res) => {
     const sessions = await findAttendanceSessionsForUser(req.auth!.userId, req.auth!.role);
-    res.json(sessions.map((session) => serializer.attendanceSession(session, session.attendees)));
+    const normalizedSessions: AttendanceSessionWithRecords[] = [];
+    for (const session of sessions) {
+      normalizedSessions.push(await autoStopSessionIfScheduledEndPassed(session) as AttendanceSessionWithRecords);
+    }
+    res.json(normalizedSessions.map((session) => serializer.attendanceSession(session, session.attendees)));
   }),
 );

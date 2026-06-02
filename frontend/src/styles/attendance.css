@@ -1913,6 +1913,11 @@
   background: var(--surface-2);
 }
 
+.attendance-roster__row--unmarked {
+  border-color: rgba(150,156,174,0.32);
+  background: rgba(249,250,252,0.96);
+}
+
 .attendance-roster__row strong {
   display: block;
   min-width: 0;
@@ -1985,6 +1990,8 @@
   display: flex;
   gap: 8px;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .attendance-toggle {
@@ -2012,6 +2019,82 @@
   color: #c7362f;
   background: rgba(217,68,68,0.08);
   border-color: rgba(217,68,68,0.16);
+}
+
+.attendance-manual-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 286px;
+}
+
+.attendance-manual-actions > div {
+  display: flex;
+  gap: 7px;
+}
+
+.attendance-manual-state {
+  min-width: 82px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.attendance-manual-state--present {
+  color: #147a45;
+  background: rgba(26,157,92,0.1);
+}
+
+.attendance-manual-state--absent {
+  color: #b8322b;
+  background: rgba(217,68,68,0.09);
+}
+
+.attendance-manual-state--unmarked {
+  color: var(--text-muted);
+  background: rgba(143,150,170,0.14);
+}
+
+.attendance-mini-toggle {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 11px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.attendance-mini-toggle:hover {
+  transform: translateY(-1px);
+  border-color: rgba(86,80,211,0.22);
+  color: var(--text-primary);
+}
+
+.attendance-mini-toggle.is-active {
+  border-color: rgba(26,157,92,0.2);
+  background: rgba(26,157,92,0.1);
+  color: #147a45;
+}
+
+.attendance-mini-toggle--absent.is-active {
+  border-color: rgba(217,68,68,0.18);
+  background: rgba(217,68,68,0.09);
+  color: #b8322b;
 }
 
 .attendance-select {
@@ -2737,9 +2820,26 @@
   }
 
   .attendance-roster__row > svg,
-  .attendance-toggle {
+  .attendance-toggle,
+  .attendance-manual-actions {
     grid-column: 1 / -1;
     justify-self: stretch;
+  }
+
+  .attendance-manual-actions {
+    min-width: 0;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .attendance-manual-actions > div {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .attendance-manual-state,
+  .attendance-mini-toggle {
+    width: 100%;
   }
 
   .attendance-qr-frame {

@@ -116,6 +116,7 @@ const StatusBadge: React.FC<{ status: 'present' | 'absent' | 'pending' }> = ({ s
 );
 
 type AttendanceStatus = 'present' | 'absent' | 'pending';
+type ManualAttendanceMark = 'present' | 'absent';
 
 type StudentAttendanceEntry = {
   session: AttendanceSession;
@@ -318,7 +319,7 @@ const TeacherAttendanceView: React.FC = () => {
   const [tab, setTab] = useState<'qr' | 'manual' | 'records'>('qr');
   const [selectedSlotId, setSelectedSlotId] = useState('');
   const [roster, setRoster] = useState<AttendanceRosterStudent[]>([]);
-  const [manualMarks, setManualMarks] = useState<Record<string, boolean>>({});
+  const [manualMarks, setManualMarks] = useState<Record<string, ManualAttendanceMark | undefined>>({});
   const [sessions, setSessions] = useState<AttendanceSession[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -349,9 +350,9 @@ const TeacherAttendanceView: React.FC = () => {
     const nextRoster = await api.attendance.getRoster({ scheduleId: slotId });
     setRoster(nextRoster);
     setManualMarks((prev) => {
-      const next: Record<string, boolean> = {};
+      const next: Record<string, ManualAttendanceMark | undefined> = {};
       nextRoster.forEach((student) => {
-        next[student.id] = prev[student.id] ?? false;
+        next[student.id] = prev[student.id];
       });
       return next;
     });
@@ -367,9 +368,8 @@ const TeacherAttendanceView: React.FC = () => {
     try {
       const refreshed = await refreshAttendanceSession(sessionId);
       setSecondsLeft(qrSecondsLeft(refreshed));
-      setError('');
     } catch (refreshError) {
-      setError(refreshError instanceof Error ? refreshError.message : 'Unable to refresh QR code');
+      console.warn('Unable to refresh QR attendance token', refreshError);
     } finally {
       refreshInFlightRef.current = false;
     }
@@ -448,6 +448,12 @@ const TeacherAttendanceView: React.FC = () => {
 
   const submitManualAttendance = async () => {
     if (!selectedSlot || roster.length === 0) return;
+    const unmarked = roster.filter((student) => !manualMarks[student.id]);
+    if (unmarked.length > 0) {
+      setError(`${unmarked.length} students are still unmarked. Mark every student present or absent before submitting.`);
+      return;
+    }
+
     setBusy(true);
     setError('');
     try {
@@ -457,7 +463,7 @@ const TeacherAttendanceView: React.FC = () => {
         roster.map((student) => ({
           studentId: student.id,
           studentName: student.name,
-          present: manualMarks[student.id] ?? false,
+          present: manualMarks[student.id] === 'present',
         })),
       );
       await stopAttendanceSession(session.id);
@@ -470,13 +476,27 @@ const TeacherAttendanceView: React.FC = () => {
     }
   };
 
-  const setAllManual = (present: boolean) => {
-    const next: Record<string, boolean> = {};
+  const setAllManual = (mark: ManualAttendanceMark) => {
+    const next: Record<string, ManualAttendanceMark> = {};
     roster.forEach((student) => {
-      next[student.id] = present;
+      next[student.id] = mark;
     });
     setManualMarks(next);
   };
+
+  const clearManualMarks = () => {
+    const next: Record<string, undefined> = {};
+    roster.forEach((student) => {
+      next[student.id] = undefined;
+    });
+    setManualMarks(next);
+  };
+
+  const manualValues = roster.map((student) => manualMarks[student.id]);
+  const presentManualCount = manualValues.filter((mark) => mark === 'present').length;
+  const absentManualCount = manualValues.filter((mark) => mark === 'absent').length;
+  const markedManualCount = presentManualCount + absentManualCount;
+  const unmarkedManualCount = Math.max(0, roster.length - markedManualCount);
 
   const activeRosterSize = roster.length || activeSession?.attendees.length || 0;
   const teacherPresent = activeSession ? presentCount(activeSession) : 0;
@@ -603,38 +623,56 @@ const TeacherAttendanceView: React.FC = () => {
               <div className="attendance-manual-toolbar">
                 <div>
                   <strong>{selectedSlot.subject}</strong>
-                  <span>{selectedSlot.department} | {selectedSlot.course} Sem {selectedSlot.semester}</span>
+                  <span>
+                    {selectedSlot.department} | {selectedSlot.course} Sem {selectedSlot.semester} | {markedManualCount} marked, {unmarkedManualCount} unmarked
+                  </span>
                 </div>
                 <div>
-                  <button className="btn btn--outline" onClick={() => setAllManual(true)} type="button">All Present</button>
-                  <button className="btn btn--outline" onClick={() => setAllManual(false)} type="button">All Absent</button>
+                  <button className="btn btn--outline" onClick={() => setAllManual('present')} type="button">All Present</button>
+                  <button className="btn btn--outline" onClick={() => setAllManual('absent')} type="button">All Absent</button>
+                  <button className="btn btn--outline" onClick={clearManualMarks} type="button">Clear</button>
                 </div>
               </div>
               <div className="attendance-roster attendance-roster--manual">
                 {roster.map((student) => {
-                  const present = manualMarks[student.id] ?? false;
+                  const mark = manualMarks[student.id];
                   return (
-                    <div className="attendance-roster__row" key={student.id}>
+                    <div className={`attendance-roster__row ${!mark ? 'attendance-roster__row--unmarked' : ''}`} key={student.id}>
                       <div className="attendance-avatar">{student.name.slice(0, 1).toUpperCase()}</div>
                       <div>
                         <strong>{student.name}</strong>
                         <span>{student.id} | {student.email}</span>
                       </div>
-                      <button
-                        className={`attendance-toggle ${present ? 'attendance-toggle--present' : 'attendance-toggle--absent'}`}
-                        onClick={() => setManualMarks((prev) => ({ ...prev, [student.id]: !present }))}
-                        type="button"
-                      >
-                        {present ? <UserCheck size={16} /> : <UserX size={16} />}
-                        {present ? 'Present' : 'Absent'}
-                      </button>
+                      <div className="attendance-manual-actions">
+                        <span className={`attendance-manual-state attendance-manual-state--${mark ?? 'unmarked'}`}>
+                          {mark === 'present' ? 'Present' : mark === 'absent' ? 'Absent' : 'Unmarked'}
+                        </span>
+                        <div>
+                          <button
+                            className={`attendance-mini-toggle ${mark === 'present' ? 'is-active' : ''}`}
+                            onClick={() => setManualMarks((prev) => ({ ...prev, [student.id]: 'present' }))}
+                            type="button"
+                          >
+                            <UserCheck size={15} />
+                            Present
+                          </button>
+                          <button
+                            className={`attendance-mini-toggle attendance-mini-toggle--absent ${mark === 'absent' ? 'is-active' : ''}`}
+                            onClick={() => setManualMarks((prev) => ({ ...prev, [student.id]: 'absent' }))}
+                            type="button"
+                          >
+                            <UserX size={15} />
+                            Absent
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
               </div>
               <div className="attendance-panel__foot">
-                <span>{Object.values(manualMarks).filter(Boolean).length} present, {roster.length - Object.values(manualMarks).filter(Boolean).length} absent</span>
-                <button className="btn btn--primary" onClick={submitManualAttendance} disabled={busy} type="button">
+                <span>{presentManualCount} present, {absentManualCount} absent, {unmarkedManualCount} unmarked</span>
+                <button className="btn btn--primary" onClick={submitManualAttendance} disabled={busy || unmarkedManualCount > 0} type="button">
                   <ListChecks size={17} />
                   Submit Manual Attendance
                 </button>

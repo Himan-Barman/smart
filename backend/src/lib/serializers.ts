@@ -233,7 +233,7 @@ export const serializer = {
         room: attendee.room ?? undefined,
         scheduleId: attendee.scheduleId ?? undefined,
         markedById: attendee.markedById ?? undefined,
-        markedAt: attendee.markedAt.toISOString(),
+        markedAt: attendee.markedAt?.toISOString?.() ?? session.date.toISOString(),
       })),
       isActive: session.isActive,
       scheduleId: session.scheduleId ?? undefined,
