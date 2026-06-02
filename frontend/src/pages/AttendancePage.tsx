@@ -115,6 +115,47 @@ const StatusBadge: React.FC<{ status: 'present' | 'absent' | 'pending' }> = ({ s
   </span>
 );
 
+type AttendanceStatus = 'present' | 'absent' | 'pending';
+
+type StudentAttendanceEntry = {
+  session: AttendanceSession;
+  record?: AttendanceSession['attendees'][number];
+  status: AttendanceStatus;
+  semester: number | null;
+  semesterKey: string;
+  semesterLabel: string;
+  subjectKey: string;
+  subjectName: string;
+  courseCode: string;
+  academicYear: string;
+  department: string;
+  course: string;
+  dateValue: number;
+};
+
+type StudentSubjectSummary = {
+  key: string;
+  subjectName: string;
+  courseCode: string;
+  entries: StudentAttendanceEntry[];
+  total: number;
+  present: number;
+  absent: number;
+  percent: number;
+};
+
+type StudentSemesterSummary = {
+  key: string;
+  label: string;
+  academicYears: string[];
+  entries: StudentAttendanceEntry[];
+  subjects: StudentSubjectSummary[];
+  total: number;
+  present: number;
+  absent: number;
+  percent: number;
+};
+
 const EmptyState: React.FC<{ icon: React.ReactNode; title: string; body: string }> = ({ icon, title, body }) => (
   <div className="attendance-empty">
     <div className="attendance-empty__icon">{icon}</div>
@@ -687,6 +728,8 @@ const StudentAttendanceView: React.FC = () => {
   const { attendanceSession, markAttendance } = useApp();
   const { currentUser } = useAuth();
   const [tab, setTab] = useState<'scan' | 'records'>('scan');
+  const [selectedSemesterKey, setSelectedSemesterKey] = useState('');
+  const [selectedSubjectKey, setSelectedSubjectKey] = useState('');
   const [sessions, setSessions] = useState<AttendanceSession[]>([]);
   const [scanning, setScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -748,13 +791,123 @@ const StudentAttendanceView: React.FC = () => {
     }
   };
 
-  const countedSessions = sessions.filter((session) => !session.isActive || userRecord(session));
+  const countedSessions = useMemo(
+    () => sessions.filter((session) => !session.isActive || userRecord(session)),
+    [sessions, userRecord],
+  );
   const presentRecords = countedSessions.filter((session) => userRecord(session)?.status === 'present').length;
   const absentRecords = countedSessions.filter((session) => {
     const record = userRecord(session);
     return !session.isActive && (record?.status === 'absent' || !record);
   }).length;
-  const percent = attendancePercent(presentRecords, countedSessions.filter((session) => !session.isActive || userRecord(session)).length);
+  const percent = attendancePercent(presentRecords, countedSessions.length);
+
+  const semesterSummaries = useMemo<StudentSemesterSummary[]>(() => {
+    const entries = countedSessions.map<StudentAttendanceEntry>((session) => {
+      const record = userRecord(session);
+      const status: AttendanceStatus = session.isActive && !record ? 'pending' : record?.status ?? 'absent';
+      const semester = record?.semester ?? session.semester ?? currentUser?.semester ?? null;
+      const subjectName = subjectFor(session, record);
+      const courseCode = record?.courseCode ?? session.courseCode;
+      const academicYear = record?.academicYear ?? academicYearFor(session.date);
+      const department = record?.department ?? session.department;
+      const course = record?.course ?? session.course ?? 'Course';
+      const parsedDate = new Date(session.date).getTime();
+
+      return {
+        session,
+        record,
+        status,
+        semester,
+        semesterKey: `semester-${semester ?? 'unknown'}`,
+        semesterLabel: semester ? `Semester ${semester}` : 'Semester not set',
+        subjectKey: `${courseCode || subjectName}-${subjectName}`.toLowerCase(),
+        subjectName,
+        courseCode,
+        academicYear,
+        department,
+        course,
+        dateValue: Number.isNaN(parsedDate) ? 0 : parsedDate,
+      };
+    });
+
+    const semesterMap = new Map<string, StudentAttendanceEntry[]>();
+    entries.forEach((entry) => {
+      semesterMap.set(entry.semesterKey, [...(semesterMap.get(entry.semesterKey) ?? []), entry]);
+    });
+
+    return [...semesterMap.entries()]
+      .map(([key, semesterEntries]) => {
+        const subjectMap = new Map<string, StudentAttendanceEntry[]>();
+        semesterEntries.forEach((entry) => {
+          subjectMap.set(entry.subjectKey, [...(subjectMap.get(entry.subjectKey) ?? []), entry]);
+        });
+
+        const subjects = [...subjectMap.entries()]
+          .map(([subjectKey, subjectEntries]) => {
+            const sortedEntries = [...subjectEntries].sort((a, b) => b.dateValue - a.dateValue);
+            const present = sortedEntries.filter((entry) => entry.status === 'present').length;
+            const total = sortedEntries.length;
+            return {
+              key: subjectKey,
+              subjectName: sortedEntries[0]?.subjectName ?? 'Subject',
+              courseCode: sortedEntries[0]?.courseCode ?? '-',
+              entries: sortedEntries,
+              total,
+              present,
+              absent: sortedEntries.filter((entry) => entry.status === 'absent').length,
+              percent: attendancePercent(present, total),
+            };
+          })
+          .sort((a, b) => a.subjectName.localeCompare(b.subjectName));
+
+        const sortedSemesterEntries = [...semesterEntries].sort((a, b) => b.dateValue - a.dateValue);
+        const present = sortedSemesterEntries.filter((entry) => entry.status === 'present').length;
+        const total = sortedSemesterEntries.length;
+        const academicYears = [...new Set(sortedSemesterEntries.map((entry) => entry.academicYear))];
+
+        return {
+          key,
+          label: sortedSemesterEntries[0]?.semesterLabel ?? 'Semester',
+          academicYears,
+          entries: sortedSemesterEntries,
+          subjects,
+          total,
+          present,
+          absent: sortedSemesterEntries.filter((entry) => entry.status === 'absent').length,
+          percent: attendancePercent(present, total),
+        };
+      })
+      .sort((a, b) => {
+        const aSem = a.entries[0]?.semester ?? 0;
+        const bSem = b.entries[0]?.semester ?? 0;
+        return bSem - aSem;
+      });
+  }, [countedSessions, currentUser?.semester, userRecord]);
+
+  const selectedSemester = semesterSummaries.find((semester) => semester.key === selectedSemesterKey) ?? semesterSummaries[0];
+  const selectedSubject = selectedSemester?.subjects.find((subject) => subject.key === selectedSubjectKey) ?? selectedSemester?.subjects[0];
+
+  useEffect(() => {
+    if (tab !== 'records') return;
+    if (semesterSummaries.length === 0) {
+      if (selectedSemesterKey) setSelectedSemesterKey('');
+      if (selectedSubjectKey) setSelectedSubjectKey('');
+      return;
+    }
+
+    if (!semesterSummaries.some((semester) => semester.key === selectedSemesterKey)) {
+      setSelectedSemesterKey(semesterSummaries[0].key);
+      setSelectedSubjectKey(semesterSummaries[0].subjects[0]?.key ?? '');
+    }
+  }, [semesterSummaries, selectedSemesterKey, selectedSubjectKey, tab]);
+
+  useEffect(() => {
+    if (tab !== 'records' || !selectedSemester) return;
+    if (!selectedSemester.subjects.some((subject) => subject.key === selectedSubjectKey)) {
+      setSelectedSubjectKey(selectedSemester.subjects[0]?.key ?? '');
+    }
+  }, [selectedSemester, selectedSubjectKey, tab]);
 
   return (
     <AttendanceShell
@@ -847,72 +1000,108 @@ const StudentAttendanceView: React.FC = () => {
             </div>
             <button className="btn btn--outline" onClick={loadSessions} type="button"><RefreshCw size={16} /> Refresh</button>
           </div>
-          {sessions.length === 0 ? (
+          {countedSessions.length === 0 ? (
             <EmptyState icon={<History size={32} />} title="No attendance history" body="Records will appear after classes are marked by QR or manual attendance." />
-          ) : (
-            <>
-              <div className="attendance-record-grid attendance-record-grid--student">
-                {sessions.map((session) => {
-                  const record = userRecord(session);
-                  const status = session.isActive && !record ? 'pending' : record?.status ?? 'absent';
-                  return (
-                    <article className={`attendance-record-card attendance-record-card--${status}`} key={session.id}>
-                      <div className="attendance-record-card__top">
-                        <span className="attendance-pill">{(record?.mode ?? session.mode).toUpperCase()}</span>
-                        <StatusBadge status={status} />
-                      </div>
-                      <h4>{subjectFor(session, record)}</h4>
-                      <p>{scopeFor(session, record)}</p>
-                      <div className="attendance-record-card__meta">
-                        <span><CalendarDays size={14} /> {sessionDate(session)}</span>
-                        <span><Clock size={14} /> {recordTime(record) || session.startTime}</span>
-                        <span><BookOpen size={14} /> {record?.courseCode ?? session.courseCode}</span>
-                      </div>
-                    </article>
-                  );
-                })}
+          ) : selectedSemester ? (
+            <div className="attendance-student-records">
+              <div className="attendance-semester-strip">
+                {semesterSummaries.map((semester) => (
+                  <button
+                    className={`attendance-semester-card ${semester.key === selectedSemester.key ? 'is-active' : ''}`}
+                    key={semester.key}
+                    onClick={() => {
+                      setSelectedSemesterKey(semester.key);
+                      setSelectedSubjectKey(semester.subjects[0]?.key ?? '');
+                    }}
+                    type="button"
+                  >
+                    <span>{semester.label}</span>
+                    <strong>{semester.present}/{semester.total}</strong>
+                    <small>{semester.percent}% attendance</small>
+                    <div className="attendance-progress" aria-hidden="true">
+                      <i style={{ width: `${semester.percent}%` }} />
+                    </div>
+                  </button>
+                ))}
               </div>
-              <div className="attendance-table-wrap">
-                <table className="attendance-table">
-                  <thead>
-                    <tr>
-                      <th>Subject</th>
-                      <th>Academic Scope</th>
-                      <th>Faculty / Room</th>
-                      <th>Mode</th>
-                      <th>Marked At</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sessions.map((session) => {
-                      const record = userRecord(session);
-                      const status = session.isActive && !record ? 'pending' : record?.status ?? 'absent';
-                      return (
-                        <tr key={session.id}>
-                          <td>
-                            <strong>{subjectFor(session, record)}</strong>
-                            <span>{record?.courseCode ?? session.courseCode}</span>
-                          </td>
-                          <td>
-                            <strong>{record?.department ?? session.department}</strong>
-                            <span>{scopeFor(session, record)}</span>
-                          </td>
-                          <td>
-                            <strong>{record?.facultyName ?? session.faculty}</strong>
-                            <span>{record?.room ?? session.room ?? 'Room not set'}</span>
-                          </td>
-                          <td><span className="attendance-pill">{(record?.mode ?? session.mode).toUpperCase()}</span></td>
-                          <td>{recordTime(record) || session.startTime}</td>
-                          <td><StatusBadge status={status} /></td>
+
+              <div className="attendance-semester-overview">
+                <div>
+                  <span>{selectedSemester.academicYears.join(', ')}</span>
+                  <h4>{selectedSemester.label} Overall</h4>
+                  <p>{selectedSemester.present}/{selectedSemester.total} classes attended across {selectedSemester.subjects.length} subjects.</p>
+                </div>
+                <div className="attendance-semester-score">
+                  <strong>{selectedSemester.percent}%</strong>
+                  <span>{selectedSemester.present}/{selectedSemester.total}</span>
+                </div>
+              </div>
+
+              <div className="attendance-subject-grid">
+                {selectedSemester.subjects.map((subject) => (
+                  <button
+                    className={`attendance-subject-card ${subject.key === selectedSubject?.key ? 'is-active' : ''}`}
+                    key={subject.key}
+                    onClick={() => setSelectedSubjectKey(subject.key)}
+                    type="button"
+                  >
+                    <span className="attendance-subject-card__icon"><BookOpen size={18} /></span>
+                    <span className="attendance-subject-card__body">
+                      <strong>{subject.subjectName}</strong>
+                      <small>{subject.courseCode} | {subject.present}/{subject.total} attended</small>
+                    </span>
+                    <em>{subject.percent}%</em>
+                  </button>
+                ))}
+              </div>
+
+              {selectedSubject ? (
+                <div className="attendance-subject-detail">
+                  <div className="attendance-subject-detail__head">
+                    <div>
+                      <span>{selectedSemester.label}</span>
+                      <h4>{selectedSubject.subjectName}</h4>
+                      <p>{selectedSubject.courseCode} | {selectedSubject.present}/{selectedSubject.total} classes | {selectedSubject.percent}%</p>
+                    </div>
+                    <span className={`attendance-subject-threshold ${selectedSubject.percent >= 75 ? 'is-good' : 'is-low'}`}>
+                      {selectedSubject.percent >= 75 ? 'On track' : 'Needs focus'}
+                    </span>
+                  </div>
+
+                  <div className="attendance-table-wrap">
+                    <table className="attendance-table attendance-subject-table">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Time</th>
+                          <th>Faculty / Room</th>
+                          <th>Mode</th>
+                          <th>Status</th>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
+                      </thead>
+                      <tbody>
+                        {selectedSubject.entries.map((entry) => (
+                          <tr key={entry.session.id}>
+                            <td>
+                              <strong>{sessionDate(entry.session)}</strong>
+                              <span>{entry.academicYear}</span>
+                            </td>
+                            <td>{recordTime(entry.record) || entry.session.startTime}</td>
+                            <td>
+                              <strong>{entry.record?.facultyName ?? entry.session.faculty}</strong>
+                              <span>{entry.record?.room ?? entry.session.room ?? 'Room not set'}</span>
+                            </td>
+                            <td><span className="attendance-pill">{(entry.record?.mode ?? entry.session.mode).toUpperCase()}</span></td>
+                            <td><StatusBadge status={entry.status} /></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </AttendanceShell>
