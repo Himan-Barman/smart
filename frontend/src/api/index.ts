@@ -142,6 +142,27 @@ export type BootstrapResponse = {
   registeredUsers: User[];
 };
 
+export type CalendarResponse = Array<{
+  id: string;
+  year: string;
+  currentYear: boolean;
+  semesters: Array<{
+    id: string;
+    num: number;
+    label: string;
+    startDate: string;
+    endDate: string;
+    events: Array<{
+      id: string;
+      title: string;
+      startDate: string;
+      endDate?: string;
+      type: 'academic' | 'exam' | 'holiday' | 'event' | 'registration';
+      description?: string;
+    }>;
+  }>;
+}>;
+
 export const api = {
   auth: {
     login(payload: { email: string; password: string }) {
@@ -334,6 +355,9 @@ export const api = {
   },
 
   schedule: {
+    list() {
+      return request<ScheduleSlot[]>('/schedule');
+    },
     create(payload: Omit<ScheduleSlot, 'id'>) {
       return request<ScheduleSlot>('/schedule', { method: 'POST', body: payload });
     },
@@ -382,73 +406,28 @@ export const api = {
 
   calendar: {
     list() {
-      return request<Array<{
-        id: string;
-        year: string;
-        currentYear: boolean;
-        semesters: Array<{
-          id: string;
-          num: number;
-          label: string;
-          startDate: string;
-          endDate: string;
-          events: Array<{
-            id: string;
-            title: string;
-            startDate: string;
-            endDate?: string;
-            type: 'academic' | 'exam' | 'holiday' | 'event' | 'registration';
-            description?: string;
-          }>;
-        }>;
-      }>>('/calendar');
+      return request<CalendarResponse>('/calendar');
+    },
+    createYear(payload: { label: string; isCurrent?: boolean; semesters: Array<{ semNum: number; startDate: string; endDate: string }> }) {
+      return request<CalendarResponse>('/calendar/years', { method: 'POST', body: payload });
+    },
+    updateYear(yearId: string, payload: Partial<{ label: string; isCurrent: boolean; semesters: Array<{ semNum: number; startDate: string; endDate: string }> }>) {
+      return request<CalendarResponse>(`/calendar/years/${yearId}`, { method: 'PATCH', body: payload });
+    },
+    deleteYear(yearId: string) {
+      return request<void>(`/calendar/years/${yearId}`, { method: 'DELETE' });
     },
     createEvent(payload: { semesterId: string; title: string; startDate: string; endDate?: string; type: 'academic' | 'exam' | 'holiday' | 'event' | 'registration'; description?: string }) {
-      return request<Array<{
-        id: string;
-        year: string;
-        currentYear: boolean;
-        semesters: Array<{
-          id: string;
-          num: number;
-          label: string;
-          startDate: string;
-          endDate: string;
-          events: Array<{
-            id: string;
-            title: string;
-            startDate: string;
-            endDate?: string;
-            type: 'academic' | 'exam' | 'holiday' | 'event' | 'registration';
-            description?: string;
-          }>;
-        }>;
-      }>>('/calendar/events', { method: 'POST', body: payload });
+      return request<CalendarResponse>('/calendar/events', { method: 'POST', body: payload });
     },
     updateEvent(eventId: string, payload: Partial<{ semesterId: string; title: string; startDate: string; endDate?: string; type: 'academic' | 'exam' | 'holiday' | 'event' | 'registration'; description?: string }>) {
-      return request<Array<{
-        id: string;
-        year: string;
-        currentYear: boolean;
-        semesters: Array<{
-          id: string;
-          num: number;
-          label: string;
-          startDate: string;
-          endDate: string;
-          events: Array<{
-            id: string;
-            title: string;
-            startDate: string;
-            endDate?: string;
-            type: 'academic' | 'exam' | 'holiday' | 'event' | 'registration';
-            description?: string;
-          }>;
-        }>;
-      }>>(`/calendar/events/${eventId}`, { method: 'PATCH', body: payload });
+      return request<CalendarResponse>(`/calendar/events/${eventId}`, { method: 'PATCH', body: payload });
     },
     deleteEvent(eventId: string) {
       return request<void>(`/calendar/events/${eventId}`, { method: 'DELETE' });
+    },
+    syncGovernmentHolidays() {
+      return request<{ created: number; existing: number; skipped: number; calendar: CalendarResponse }>('/calendar/government-holidays/sync', { method: 'POST' });
     },
   },
 };

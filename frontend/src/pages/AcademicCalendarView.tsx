@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../api';
+import { api, type CalendarResponse } from '../api';
 import {
   CalendarDays, Plus, Edit3, Trash2, X, Check,
   BookOpen, FlaskConical, Award, Coffee, Megaphone, ChevronLeft, ChevronRight, History, Clock,
@@ -34,6 +34,28 @@ interface AcademicYear {
   currentYear: boolean;
   semesters: SemesterData[];
 }
+
+const mapCalendarResponse = (response: CalendarResponse): AcademicYear[] =>
+  response.map((year) => ({
+    id: year.id,
+    year: year.year,
+    currentYear: year.currentYear,
+    semesters: year.semesters.map((semester) => ({
+      id: semester.id,
+      num: semester.num,
+      label: semester.label,
+      startDate: semester.startDate,
+      endDate: semester.endDate,
+      events: semester.events.map((event) => ({
+        id: event.id,
+        title: event.title,
+        startDate: event.startDate,
+        endDate: event.endDate,
+        type: event.type,
+        description: event.description,
+      })),
+    })),
+  }));
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const TYPE_CONFIG: Record<EventType, { label: string; color: string; bg: string; Icon: React.FC<any> }> = {
@@ -464,6 +486,7 @@ const AcademicCalendarView: React.FC = () => {
 
   const [data, setData] = useState<AcademicYear[]>(INITIAL_DATA);
   const [activeTab, setActiveTab] = useState<'current' | 'records'>('current');
+  const [syncingHolidays, setSyncingHolidays] = useState(false);
   
   // Modal State
   const [modal, setModal] = useState<{ yearId: string, semNum: number; event?: CalEvent; initialDate?: string } | null>(null);
@@ -475,27 +498,7 @@ const AcademicCalendarView: React.FC = () => {
     const loadCalendar = async () => {
       try {
         const response = await api.calendar.list();
-        const mapped: AcademicYear[] = response.map((year) => ({
-          id: year.id,
-          year: year.year,
-          currentYear: year.currentYear,
-          semesters: year.semesters.map((semester) => ({
-            id: semester.id,
-            num: semester.num,
-            label: semester.label,
-            startDate: semester.startDate,
-            endDate: semester.endDate,
-            events: semester.events.map((event) => ({
-              id: event.id,
-              title: event.title,
-              startDate: event.startDate,
-              endDate: event.endDate,
-              type: event.type,
-              description: event.description,
-            })),
-          })),
-        }));
-        setData(mapped);
+        setData(mapCalendarResponse(response));
       } catch {
         setData(INITIAL_DATA);
       }
@@ -536,19 +539,27 @@ const AcademicCalendarView: React.FC = () => {
   const handleAddNewSession = () => {
     const yearStr = prompt('Enter new academic year (e.g., 2027-2028):');
     if (!yearStr) return;
-    
-    const newSession: AcademicYear = {
-      id: `ay-${Date.now()}`,
-      year: yearStr,
-      currentYear: true,
+
+    const oddStart = prompt('Odd semester start date (YYYY-MM-DD):');
+    const oddEnd = prompt('Odd semester end date (YYYY-MM-DD):');
+    const evenStart = prompt('Even semester start date (YYYY-MM-DD):');
+    const evenEnd = prompt('Even semester end date (YYYY-MM-DD):');
+    if (!oddStart || !oddEnd || !evenStart || !evenEnd) return;
+
+    void api.calendar.createYear({
+      label: yearStr,
+      isCurrent: true,
       semesters: [
-        { num: 1, label: 'Odd Semester', startDate: '', endDate: '', events: [] },
-        { num: 2, label: 'Even Semester', startDate: '', endDate: '', events: [] }
-      ]
-    };
-    
-    setData(prev => [newSession, ...prev.map(y => ({ ...y, currentYear: false }))]);
-    setActiveTab('current');
+        { semNum: 1, startDate: oddStart, endDate: oddEnd },
+        { semNum: 2, startDate: evenStart, endDate: evenEnd },
+      ],
+    }).then((response) => {
+      setData(mapCalendarResponse(response));
+      setActiveTab('current');
+      window.dispatchEvent(new Event('smart-campus-notifications-updated'));
+    }).catch((error) => {
+      window.alert(error instanceof Error ? error.message : 'Unable to add academic session');
+    });
   };
 
   const handleEditSession = (yearId: string) => {
@@ -556,14 +567,38 @@ const AcademicCalendarView: React.FC = () => {
     if (!year) return;
     const newYearStr = prompt('Edit academic year name:', year.year);
     if (newYearStr) {
-      setData(prev => prev.map(y => y.id === yearId ? { ...y, year: newYearStr } : y));
+      void api.calendar.updateYear(yearId, { label: newYearStr }).then((response) => {
+        setData(mapCalendarResponse(response));
+        window.dispatchEvent(new Event('smart-campus-notifications-updated'));
+      }).catch((error) => {
+        window.alert(error instanceof Error ? error.message : 'Unable to update academic session');
+      });
     }
   };
 
   const handleDeleteSession = (yearId: string) => {
     if (confirm('Are you sure you want to delete this entire session?')) {
-      setData(prev => prev.filter(y => y.id !== yearId));
+      void api.calendar.deleteYear(yearId).then(async () => {
+        const response = await api.calendar.list();
+        setData(mapCalendarResponse(response));
+        window.dispatchEvent(new Event('smart-campus-notifications-updated'));
+      }).catch((error) => {
+        window.alert(error instanceof Error ? error.message : 'Unable to delete academic session');
+      });
     }
+  };
+
+  const handleSyncGovernmentHolidays = () => {
+    setSyncingHolidays(true);
+    void api.calendar.syncGovernmentHolidays().then((response) => {
+      setData(mapCalendarResponse(response.calendar));
+      window.dispatchEvent(new Event('smart-campus-notifications-updated'));
+      window.alert(`Government holidays synced. Added ${response.created}, already present ${response.existing}, outside sessions ${response.skipped}.`);
+    }).catch((error) => {
+      window.alert(error instanceof Error ? error.message : 'Unable to sync government holidays');
+    }).finally(() => {
+      setSyncingHolidays(false);
+    });
   };
 
   const saveEvent = (yearId: string, semNum: number, eventId: string | undefined, evData: Omit<CalEvent, 'id'>) => {
@@ -595,26 +630,7 @@ const AcademicCalendarView: React.FC = () => {
             type: evData.type,
             description: evData.description,
           });
-          setData(response.map((year) => ({
-            id: year.id,
-            year: year.year,
-            currentYear: year.currentYear,
-            semesters: year.semesters.map((semester) => ({
-              id: semester.id,
-              num: semester.num,
-              label: semester.label,
-              startDate: semester.startDate,
-              endDate: semester.endDate,
-              events: semester.events.map((event) => ({
-                id: event.id,
-                title: event.title,
-                startDate: event.startDate,
-                endDate: event.endDate,
-                type: event.type,
-                description: event.description,
-              })),
-            })),
-          })));
+          setData(mapCalendarResponse(response));
         } else {
           const response = await api.calendar.createEvent({
             semesterId,
@@ -624,29 +640,14 @@ const AcademicCalendarView: React.FC = () => {
             type: evData.type,
             description: evData.description,
           });
-          setData(response.map((year) => ({
-            id: year.id,
-            year: year.year,
-            currentYear: year.currentYear,
-            semesters: year.semesters.map((semester) => ({
-              id: semester.id,
-              num: semester.num,
-              label: semester.label,
-              startDate: semester.startDate,
-              endDate: semester.endDate,
-              events: semester.events.map((event) => ({
-                id: event.id,
-                title: event.title,
-                startDate: event.startDate,
-                endDate: event.endDate,
-                type: event.type,
-                description: event.description,
-              })),
-            })),
-          })));
+          setData(mapCalendarResponse(response));
         }
       };
-      void syncCalendar();
+      void syncCalendar().then(() => {
+        window.dispatchEvent(new Event('smart-campus-notifications-updated'));
+      }).catch((error) => {
+        window.alert(error instanceof Error ? error.message : 'Unable to save calendar event');
+      });
       setModal(null);
       return;
     }
@@ -676,26 +677,10 @@ const AcademicCalendarView: React.FC = () => {
     if (targetSem?.id && isAdmin) {
       void api.calendar.deleteEvent(eventId).then(async () => {
         const response = await api.calendar.list();
-        setData(response.map((year) => ({
-          id: year.id,
-          year: year.year,
-          currentYear: year.currentYear,
-          semesters: year.semesters.map((semester) => ({
-            id: semester.id,
-            num: semester.num,
-            label: semester.label,
-            startDate: semester.startDate,
-            endDate: semester.endDate,
-            events: semester.events.map((event) => ({
-              id: event.id,
-              title: event.title,
-              startDate: event.startDate,
-              endDate: event.endDate,
-              type: event.type,
-              description: event.description,
-            })),
-          })),
-        })));
+        setData(mapCalendarResponse(response));
+        window.dispatchEvent(new Event('smart-campus-notifications-updated'));
+      }).catch((error) => {
+        window.alert(error instanceof Error ? error.message : 'Unable to delete calendar event');
       });
       setModal(null);
       return;
@@ -816,13 +801,23 @@ const AcademicCalendarView: React.FC = () => {
 
             {/* Add Session Action */}
             {isAdmin && (
-              <button 
-                className="btn btn--primary" 
-                onClick={handleAddNewSession}
-                style={{ padding: '10px 20px', fontSize: '15px', fontWeight: 600 }}
-              >
-                <CalendarPlus size={18} /> Add Session
-              </button>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  className="btn btn--outline"
+                  onClick={handleSyncGovernmentHolidays}
+                  disabled={syncingHolidays}
+                  style={{ padding: '10px 16px', fontSize: '15px', fontWeight: 600 }}
+                >
+                  <CalendarDays size={18} /> {syncingHolidays ? 'Syncing...' : 'Sync Govt Holidays'}
+                </button>
+                <button
+                  className="btn btn--primary"
+                  onClick={handleAddNewSession}
+                  style={{ padding: '10px 20px', fontSize: '15px', fontWeight: 600 }}
+                >
+                  <CalendarPlus size={18} /> Add Session
+                </button>
+              </div>
             )}
           </div>
 

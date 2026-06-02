@@ -1,0 +1,58 @@
+export type GovernmentHoliday = {
+  title: string;
+  date: string;
+  description: string;
+};
+
+// Source: Government of West Bengal, Finance (Audit) Department, List of Holidays for the year 2026.
+// Official PDF: https://www.egiyebangla.gov.in/pdf/Holiday-2026.pdf
+export const WEST_BENGAL_GOVERNMENT_HOLIDAYS_2026: GovernmentHoliday[] = [
+  { title: "New Year's Day", date: '2026-01-01', description: 'West Bengal Government public holiday, List-I' },
+  { title: 'Birthday of Swami Vivekananda', date: '2026-01-12', description: 'West Bengal Government public holiday, List-I' },
+  { title: "Netaji's Birthday / Saraswati Puja", date: '2026-01-23', description: 'West Bengal Government public holiday, List-I' },
+  { title: 'Republic Day', date: '2026-01-26', description: 'West Bengal Government public holiday, List-I' },
+  { title: 'Day before Saraswati Puja', date: '2026-01-22', description: 'West Bengal Government holiday, List-II' },
+  { title: 'Shab-e-Barat', date: '2026-02-04', description: 'West Bengal Government holiday, List-II' },
+  { title: 'Birthday of Thakur Panchanan Barma', date: '2026-02-14', description: 'West Bengal Government holiday, List-II' },
+  { title: 'Doljatra', date: '2026-03-03', description: 'West Bengal Government public holiday, List-I' },
+  { title: 'Holi', date: '2026-03-04', description: 'West Bengal Government holiday, List-II' },
+  { title: 'Birthday of Shri Shri Harichand Thakur', date: '2026-03-17', description: 'West Bengal Government holiday, List-II' },
+  { title: 'Day before Eid-Ul-Fitr', date: '2026-03-20', description: 'West Bengal Government holiday, List-II' },
+  { title: 'Eid-Ul-Fitr', date: '2026-03-21', description: 'West Bengal Government public holiday, List-I' },
+  { title: 'Ram Navami', date: '2026-03-26', description: 'West Bengal Government public holiday, List-I' },
+  { title: 'Mahavir Jayanti', date: '2026-03-31', description: 'West Bengal Government public holiday, List-I' },
+  { title: 'Good Friday', date: '2026-04-03', description: 'West Bengal Government public holiday, List-I' },
+  { title: 'Birthday of Dr. B. R. Ambedkar', date: '2026-04-14', description: 'West Bengal Government public holiday, List-I' },
+  { title: 'Bengali New Year', date: '2026-04-15', description: 'West Bengal Government public holiday, List-I' },
+  { title: 'May Day / Buddha Purnima', date: '2026-05-01', description: 'West Bengal Government public holiday, List-I' },
+  { title: 'Birthday of Rabindranath Tagore', date: '2026-05-09', description: 'West Bengal Government public holiday, List-I' },
+  { title: 'Day before Id-Ud-Zoha', date: '2026-05-26', description: 'West Bengal Government holiday, List-II' },
+  { title: 'Id-Ud-Zoha (Bakrid)', date: '2026-05-27', description: 'West Bengal Government public holiday, List-I' },
+  { title: 'Muharram', date: '2026-06-26', description: 'West Bengal Government public holiday, List-I' },
+  { title: 'Birthday of Poet Bhanu Bhakt', date: '2026-07-13', description: 'West Bengal Government district holiday for Darjeeling and Kalimpong, List-II' },
+  { title: 'Rathayatra', date: '2026-07-16', description: 'West Bengal Government holiday, List-II' },
+  { title: 'Independence Day', date: '2026-08-15', description: 'West Bengal Government public holiday, List-I' },
+  { title: 'Fateha-Dwaz-Daham', date: '2026-08-26', description: 'West Bengal Government holiday, List-II' },
+  { title: 'Rakhi Bandhan', date: '2026-08-28', description: 'West Bengal Government holiday, List-II' },
+  { title: 'Janmashtami', date: '2026-09-04', description: 'West Bengal Government public holiday, List-I' },
+  { title: 'Viswakarma Puja', date: '2026-09-17', description: 'West Bengal Government holiday, List-II' },
+  { title: 'Gandhi Jayanti', date: '2026-10-02', description: 'West Bengal Government public holiday, List-I' },
+  { title: 'Mahalaya', date: '2026-10-10', description: 'West Bengal Government public holiday, List-I' },
+  { title: 'Durga Puja, Maha Chaturthi', date: '2026-10-15', description: 'West Bengal Government holiday, List-II' },
+  { title: 'Durga Puja, Maha Panchami', date: '2026-10-16', description: 'West Bengal Government holiday, List-II' },
+  { title: 'Durga Puja, Maha Shashthi', date: '2026-10-17', description: 'West Bengal Government holiday, List-II' },
+  { title: 'Durga Puja, Maha Astami', date: '2026-10-19', description: 'West Bengal Government public holiday, List-I' },
+  { title: 'Durga Puja, Maha Nabami', date: '2026-10-20', description: 'West Bengal Government public holiday, List-I' },
+  { title: 'Durga Puja, Dasami', date: '2026-10-21', description: 'West Bengal Government public holiday, List-I' },
+  { title: 'Additional Day for Durga Puja', date: '2026-10-22', description: 'West Bengal Government holiday, List-II' },
+  { title: 'Additional Day for Durga Puja', date: '2026-10-23', description: 'West Bengal Government holiday, List-II' },
+  { title: 'Additional Day for Durga Puja', date: '2026-10-24', description: 'West Bengal Government holiday, List-II' },
+  { title: 'Additional Day for Lakshmi Puja', date: '2026-10-26', description: 'West Bengal Government holiday, List-II' },
+  { title: 'Additional Day for Kali Puja', date: '2026-11-09', description: 'West Bengal Government holiday, List-II' },
+  { title: 'Additional Day for Kali Puja', date: '2026-11-10', description: 'West Bengal Government holiday, List-II' },
+  { title: 'Bhratridwitiya', date: '2026-11-11', description: 'West Bengal Government public holiday, List-I' },
+  { title: 'Day after Bhratridwitiya', date: '2026-11-12', description: 'West Bengal Government holiday, List-II' },
+  { title: 'Additional Day for Chhat Puja', date: '2026-11-16', description: 'West Bengal Government holiday, List-II' },
+  { title: 'Birthday of Guru Nanak', date: '2026-11-24', description: 'West Bengal Government public holiday, List-I' },
+  { title: 'Christmas Day', date: '2026-12-25', description: 'West Bengal Government public holiday, List-I' },
+];

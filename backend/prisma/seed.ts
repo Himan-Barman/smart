@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { WEST_BENGAL_GOVERNMENT_HOLIDAYS_2026 } from '../src/lib/government-holidays.js';
 
 const prisma = new PrismaClient();
 
@@ -243,8 +244,11 @@ async function main(): Promise<void> {
     { semesterId: cseSem4.id, id: 'CS301', name: 'Data Structures', code: 'CS301', credits: 4, type: 'CORE' },
     { semesterId: cseSem4.id, id: 'CS302', name: 'Algorithms', code: 'CS302', credits: 4, type: 'CORE' },
     { semesterId: cseSem4.id, id: 'CS301L', name: 'DSA Lab', code: 'CS301L', credits: 2, type: 'LAB' },
+    { semesterId: cseSem4.id, id: 'CS301T', name: 'DSA Tutorial', code: 'CS301T', credits: 1, type: 'CORE' },
     { semesterId: cseSem4.id, id: 'CS402', name: 'Machine Learning', code: 'CS402', credits: 3, type: 'ELECTIVE' },
+    { semesterId: cseSem4.id, id: 'CS402L', name: 'ML Lab', code: 'CS402L', credits: 2, type: 'LAB' },
     { semesterId: cseSem4.id, id: 'CS403', name: 'Artificial Intelligence', code: 'CS403', credits: 3, type: 'ELECTIVE' },
+    { semesterId: cseSem4.id, id: 'CS499', name: 'Seminar', code: 'CS499', credits: 1, type: 'PROJECT' },
     { semesterId: eceSem6.id, id: 'EC201', name: 'Digital Electronics', code: 'EC201', credits: 4, type: 'CORE' },
     { semesterId: eceSem6.id, id: 'EC202', name: 'Signals & Systems', code: 'EC202', credits: 4, type: 'CORE' },
     { semesterId: eceSem6.id, id: 'EC201L', name: 'DE Lab', code: 'EC201L', credits: 2, type: 'LAB' },
@@ -323,6 +327,45 @@ async function main(): Promise<void> {
         startDate: toDate(event.startDate),
         endDate: event.endDate ? toDate(event.endDate) : undefined,
         type: event.type,
+      },
+    });
+  }
+
+  const seededSemesters = await prisma.academicSemester.findMany();
+  for (const holiday of WEST_BENGAL_GOVERNMENT_HOLIDAYS_2026) {
+    const startDate = toDate(holiday.date);
+    const semester = seededSemesters.find(
+      (candidate) =>
+        startDate.getTime() >= candidate.startDate.getTime() &&
+        startDate.getTime() <= candidate.endDate.getTime(),
+    );
+
+    if (!semester) continue;
+
+    const existing = await prisma.calendarEvent.findFirst({
+      where: {
+        semesterId: semester.id,
+        title: holiday.title,
+        startDate,
+        type: 'holiday',
+      },
+    });
+
+    if (existing) {
+      await prisma.calendarEvent.update({
+        where: { id: existing.id },
+        data: { description: holiday.description },
+      });
+      continue;
+    }
+
+    await prisma.calendarEvent.create({
+      data: {
+        semesterId: semester.id,
+        title: holiday.title,
+        description: holiday.description,
+        startDate,
+        type: 'holiday',
       },
     });
   }

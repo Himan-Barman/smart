@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { getManagedUserData, type ManagedUserData } from '../../lib/managed-users.js';
 import { prisma } from '../../lib/prisma.js';
+import { findScheduleForUser } from '../../lib/schedule-access.js';
 import { serializer } from '../../lib/serializers.js';
 import { requireAuth } from '../../middleware/auth.js';
 
@@ -116,7 +117,7 @@ appDataRouter.get(
     );
     const schedule = await safeBootstrapQuery(
       'schedule',
-      () => prisma.scheduleSlot.findMany({ orderBy: [{ day: 'asc' }, { startTime: 'asc' }] }),
+      () => findScheduleForUser(userId, role),
       [],
     );
     const departments = await safeBootstrapQuery(

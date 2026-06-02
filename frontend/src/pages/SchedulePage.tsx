@@ -22,6 +22,12 @@ const TYPE_META = [
   { value: 'seminar', label: 'Seminar', icon: Presentation, color: '#6c52e8' },
 ];
 
+const timeToMinutes = (value: string): number | null => {
+  const [hours, minutes] = value.split(':').map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes) || hours > 23 || minutes > 59) return null;
+  return hours * 60 + minutes;
+};
+
 const typeColor = (t: string) => {
   switch (t) {
     case 'core': return { bg: 'rgba(59,108,245,0.08)', c: '#3b6cf5' };
@@ -34,7 +40,7 @@ const typeColor = (t: string) => {
 
 const SchedulePage: React.FC = () => {
   const { schedule, addScheduleSlot, updateScheduleSlot, deleteScheduleSlot, departments, rooms } = useApp();
-  const { currentUser } = useAuth();
+  const { currentUser, registeredUsers } = useAuth();
   const role = currentUser?.role || 'student';
 
   const [activeDay, setActiveDay] = useState<DayOfWeek>(() => {
@@ -59,7 +65,7 @@ const SchedulePage: React.FC = () => {
     if (role === 'student') {
       slots = slots.filter(s => s.department === currentUser?.department && s.semester === currentUser?.semester && s.course === currentUser?.course);
     } else if (role === 'teacher') {
-      if (filterDept === 'mine') slots = slots.filter(s => s.facultyId === currentUser?.id);
+      if (filterDept === 'mine') slots = slots.filter(s => s.facultyId === currentUser?.id || s.facultyId === currentUser?.employeeId);
       else if (filterDept !== 'all') slots = slots.filter(s => s.department === filterDept);
     } else {
       if (filterDept !== 'all') slots = slots.filter(s => s.department === filterDept);
@@ -129,18 +135,29 @@ const SchedulePage: React.FC = () => {
 
   // Faculty options — from unique faculty in schedule
   const facultyOptions: SuggestOption[] = useMemo(() => {
-    const map = new Map<string, { name: string; id: string; dept: string }>();
+    const map = new Map<string, { name: string; id: string; dept: string; sub: string }>();
+    registeredUsers
+      .filter((user) => user.role === 'teacher')
+      .forEach((user) => {
+        map.set(user.id, {
+          name: user.name,
+          id: user.id,
+          dept: user.department,
+          sub: user.employeeId || user.email,
+        });
+      });
+
     schedule.forEach(s => {
-      if (s.faculty && !map.has(s.faculty)) {
-        map.set(s.faculty, { name: s.faculty, id: s.facultyId, dept: s.department });
+      if (s.faculty && !map.has(s.facultyId)) {
+        map.set(s.facultyId, { name: s.faculty, id: s.facultyId, dept: s.department, sub: s.facultyId });
       }
     });
     return Array.from(map.values()).map(f => ({
-      id: f.id, label: f.name, sub: f.id,
+      id: f.id, label: f.name, sub: f.sub,
       meta: f.dept, badge: 'Faculty',
       badgeBg: 'rgba(108,82,232,0.08)', badgeColor: '#6c52e8',
     }));
-  }, [schedule]);
+  }, [registeredUsers, schedule]);
 
   /* ═══ HANDLERS ═══ */
   const handleDeptSelect = (opt: SuggestOption) => {
@@ -166,15 +183,36 @@ const SchedulePage: React.FC = () => {
     const dd = departments.length > 0 ? departments[0] : null;
     setForm({
       day: activeDay, startTime: '09:00', endTime: '10:00',
-      subject: '', courseCode: '', faculty: currentUser?.name || '', facultyId: currentUser?.id || '',
+      subject: '', courseCode: '', faculty: '', facultyId: '',
       room: '', type: 'lecture', department: dd?.name || '', course: dd?.course || '', semester: 0,
     });
     setEditingId(null); setShowForm(true);
   };
   const openEdit = (slot: ScheduleSlot) => { setForm({ ...slot }); setEditingId(slot.id); setShowForm(true); };
+  const formError = useMemo(() => {
+    if (!selectedDept) return 'Select a department from the Departments page.';
+    if (!form.semester) return 'Select a semester.';
+    if (!availableSubjects.some((subject) => subject.name === form.subject && subject.code === form.courseCode)) {
+      return 'Select a subject configured for this department and semester.';
+    }
+    if (!form.faculty || !form.facultyId) return 'Select a faculty account.';
+    if (!form.room) return 'Select a room.';
+
+    const start = timeToMinutes(form.startTime);
+    const end = timeToMinutes(form.endTime);
+    if (start === null || end === null) return 'Use valid 24-hour class times.';
+    if (start >= end) return 'End time must be after start time.';
+    if (start < 8 * 60 || end > 18 * 60) return 'Schedule must stay inside 08:00 to 18:00.';
+
+    return '';
+  }, [availableSubjects, form, selectedDept]);
+
   const handleSave = () => {
-    if (!form.subject || !form.courseCode || !form.startTime || !form.endTime) return;
-    if (!selectedDept || !form.semester) return;
+    if (formError) {
+      window.alert(formError);
+      return;
+    }
+    if (!selectedDept) return;
     const slot = { ...form, department: selectedDept.name, course: selectedDept.course };
     if (editingId) updateScheduleSlot(editingId, slot); else addScheduleSlot(slot);
     setShowForm(false); setEditingId(null);
@@ -401,7 +439,7 @@ const SchedulePage: React.FC = () => {
 
               {/* Day & Time */}
               <div className="sm__section">
-                <label className="sm__section-label">Day & Time</label>
+                <label className="sm__section-label">Day & Time <span className="sm__section-badge">08:00-18:00</span></label>
                 <div className="sm__day-row">
                   {DAYS.map(d => (
                     <button key={d} type="button"
@@ -438,8 +476,9 @@ const SchedulePage: React.FC = () => {
             </div>
 
             <div className="sm__foot">
+              {formError && <span style={{ marginRight: 'auto', color: 'var(--accent-red)', fontSize: '12px', fontWeight: 600 }}>{formError}</span>}
               <button className="btn btn--ghost" onClick={() => setShowForm(false)}>Cancel</button>
-              <button className="btn btn--primary" onClick={handleSave} disabled={!form.subject || !form.courseCode}>
+              <button className="btn btn--primary" onClick={handleSave} disabled={!!formError}>
                 <Check size={16} /> {editingId ? 'Save Changes' : 'Add to Schedule'}
               </button>
             </div>

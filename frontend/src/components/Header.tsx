@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
@@ -42,18 +42,31 @@ const Header: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const loadNotifications = useCallback(async () => {
+    try {
+      const list = await api.notifications.list();
+      setNotifications(list.map(({ id, title, desc, date, unread }) => ({ id, title, desc, date, unread })));
+    } catch {
+      setNotifications([]);
+    }
+  }, []);
+
   useEffect(() => {
-    const loadNotifications = async () => {
-      try {
-        const list = await api.notifications.list();
-        setNotifications(list.map(({ id, title, desc, date, unread }) => ({ id, title, desc, date, unread })));
-      } catch {
-        setNotifications([]);
-      }
+    const refresh = () => {
+      void loadNotifications();
     };
 
-    void loadNotifications();
-  }, []);
+    refresh();
+    const interval = window.setInterval(refresh, 15000);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('smart-campus-notifications-updated', refresh);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('smart-campus-notifications-updated', refresh);
+    };
+  }, [loadNotifications]);
 
 
 
@@ -248,7 +261,7 @@ const Header: React.FC = () => {
             aria-label="Notifications"
           >
             <Bell size={20} />
-            <span className="header__notification-dot" />
+            {notifications.some((notification) => notification.unread) && <span className="header__notification-dot" />}
           </button>
           
           {notificationsOpen && (

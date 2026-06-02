@@ -75,6 +75,10 @@ const getToday = () => new Date().toISOString().split('T')[0] ?? '';
 const replaceById = <T extends { id: string }>(items: T[], id: string, next: T): T[] =>
   items.map((item) => (item.id === id ? next : item));
 
+const notifyNotificationsChanged = () => {
+  window.dispatchEvent(new Event('smart-campus-notifications-updated'));
+};
+
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [currentPage, setCurrentPageInternal] = useState<PageType>('dashboard');
   const [history, setHistory] = useState<PageType[]>([]);
@@ -125,11 +129,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setDepartments(data.departments);
   }, []);
 
+  const refreshSchedule = useCallback(async () => {
+    const nextSchedule = await api.schedule.list();
+    setSchedule(nextSchedule);
+  }, []);
+
   useEffect(() => {
     void refreshAppData().catch((error) => {
       console.warn('Unable to load app data', error);
     });
   }, [refreshAppData]);
+
+  useEffect(() => {
+    const refresh = () => {
+      void refreshSchedule().catch(() => {});
+    };
+
+    const interval = window.setInterval(refresh, 15000);
+    window.addEventListener('focus', refresh);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [refreshSchedule]);
 
   const addNotice = useCallback((notice: Omit<Notice, 'id' | 'date'>) => {
     const tempId = `tmp-${generateId()}`;
@@ -279,6 +302,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     void api.schedule.create(slot).then((created) => {
       setSchedule((prev) => replaceById(prev, tempId, created));
+      notifyNotificationsChanged();
+    }).catch((error) => {
+      setSchedule((prev) => prev.filter((item) => item.id !== tempId));
+      window.alert(error instanceof Error ? error.message : 'Unable to add schedule slot');
     });
   }, []);
 
@@ -287,13 +314,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     void api.schedule.update(id, updates).then((updated) => {
       setSchedule((prev) => replaceById(prev, id, updated));
+      notifyNotificationsChanged();
+    }).catch((error) => {
+      void refreshSchedule();
+      window.alert(error instanceof Error ? error.message : 'Unable to update schedule slot');
     });
-  }, []);
+  }, [refreshSchedule]);
 
   const deleteScheduleSlot = useCallback((id: string) => {
     setSchedule((prev) => prev.filter((slot) => slot.id !== id));
-    void api.schedule.remove(id);
-  }, []);
+    void api.schedule.remove(id).then(() => {
+      notifyNotificationsChanged();
+    }).catch((error) => {
+      void refreshSchedule();
+      window.alert(error instanceof Error ? error.message : 'Unable to delete schedule slot');
+    });
+  }, [refreshSchedule]);
 
   const addDepartment = useCallback(async (dept: DepartmentPayload) => {
     const nextDepartments = await api.departments.create(dept);
