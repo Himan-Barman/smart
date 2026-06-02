@@ -19,6 +19,13 @@ const createAuthSessionTable = async (): Promise<void> => {
       CONSTRAINT "AuthSession_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
     );
   `);
+  await prisma.$executeRawUnsafe('ALTER TABLE "AuthSession" ADD COLUMN IF NOT EXISTS "refreshTokenHash" TEXT;');
+  await prisma.$executeRawUnsafe('ALTER TABLE "AuthSession" ADD COLUMN IF NOT EXISTS "userAgent" TEXT;');
+  await prisma.$executeRawUnsafe('ALTER TABLE "AuthSession" ADD COLUMN IF NOT EXISTS "ipAddress" TEXT;');
+  await prisma.$executeRawUnsafe('ALTER TABLE "AuthSession" ADD COLUMN IF NOT EXISTS "expiresAt" TIMESTAMP(3);');
+  await prisma.$executeRawUnsafe('ALTER TABLE "AuthSession" ADD COLUMN IF NOT EXISTS "revokedAt" TIMESTAMP(3);');
+  await prisma.$executeRawUnsafe('ALTER TABLE "AuthSession" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP;');
+  await prisma.$executeRawUnsafe('ALTER TABLE "AuthSession" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP;');
   await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "AuthSession_userId_idx" ON "AuthSession"("userId");');
   await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "AuthSession_expiresAt_idx" ON "AuthSession"("expiresAt");');
   await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "AuthSession_revokedAt_idx" ON "AuthSession"("revokedAt");');
@@ -32,7 +39,13 @@ export const ensureAuthSessionTable = async (): Promise<void> => {
   await ensureAuthSessionTablePromise;
 };
 
-export const isMissingAuthSessionTableError = (error: unknown): boolean =>
-  error instanceof Prisma.PrismaClientKnownRequestError &&
-  (error.code === 'P2021' || error.code === 'P2022') &&
-  String(error.meta?.modelName ?? error.meta?.table ?? error.message).includes('AuthSession');
+export const isMissingAuthSessionTableError = (error: unknown): boolean => {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  if (error.code !== 'P2021' && error.code !== 'P2022') return false;
+
+  const details = JSON.stringify(error.meta ?? {}) + error.message;
+  return details.includes('AuthSession') ||
+    details.includes('refreshTokenHash') ||
+    details.includes('expiresAt') ||
+    details.includes('revokedAt');
+};
