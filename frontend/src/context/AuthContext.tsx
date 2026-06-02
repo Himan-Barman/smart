@@ -109,7 +109,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       } catch {
         tokenStore.clear();
-        setAuthStep('login');
+        setAuthStep('landing');
       }
     };
 
@@ -216,7 +216,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setCurrentUserState(null);
     setRegisteredPersons([]);
     setRegisteredUsers([]);
-    setAuthStep('login');
+    setAuthStep('landing');
     setOtpEmail('');
     setPendingSignup(null);
     setVerifiedOtpCode('');
@@ -228,7 +228,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setCurrentUserState(null);
     setRegisteredPersons([]);
     setRegisteredUsers([]);
-    setAuthStep('login');
+    setAuthStep('landing');
     setOtpEmail('');
     setPendingSignup(null);
     setVerifiedOtpCode('');

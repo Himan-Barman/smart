@@ -33,7 +33,7 @@ export interface User {
   createdAt: string;
 }
 
-export type AuthStep = 'loading' | 'login' | 'signup' | 'otp' | 'password' | 'authenticated';
+export type AuthStep = 'loading' | 'landing' | 'login' | 'signup' | 'otp' | 'password' | 'authenticated';
 
 export interface Notice {
   id: string;

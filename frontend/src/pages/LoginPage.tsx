@@ -116,6 +116,7 @@ const LoginPage: React.FC = () => {
         {/* Footer */}
         <div className="auth-card__footer">
           <p>No account? <button onClick={() => setAuthStep('signup')}><Sparkles size={12} /> Sign Up</button></p>
+          <p><button onClick={() => setAuthStep('landing')}>Back to website</button></p>
           <span className="auth-card__terms">By signing in, you agree to our <a href="#">Terms &amp; Service</a></span>
         </div>
       </div>

@@ -18,6 +18,7 @@ import AdminUploadPage from './pages/UserManagement';
 import ProfilePage from './pages/ProfilePage';
 import NotificationsPage from './pages/NotificationsPage';
 import LoginPage from './pages/LoginPage';
+import LandingPage from './pages/LandingPage';
 import SignupPage from './pages/SignupPage';
 import OTPVerification from './pages/OTPVerification';
 import SetPasswordPage from './pages/SetPasswordPage';
@@ -27,6 +28,7 @@ import './styles/global.css';
 import './styles/pages.css';
 import './styles/attendance.css';
 import './styles/auth.css';
+import './styles/landing.css';
 import './styles/dashboard.css';
 import './styles/departments.css';
 import './styles/courseDetail.css';
@@ -109,6 +111,8 @@ const AuthRouter: React.FC = () => {
   switch (authStep) {
     case 'loading':
       return <div className="auth-page" />;
+    case 'landing':
+      return <LandingPage />;
     case 'login':
       return <LoginPage />;
     case 'signup':
