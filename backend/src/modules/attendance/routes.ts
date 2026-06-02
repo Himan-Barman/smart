@@ -495,9 +495,16 @@ attendanceRouter.post(
       userId: user.id,
     };
 
-    const attendee = existing
-      ? await prisma.attendanceRecord.update({ where: { id: existing.id }, data })
-      : await prisma.attendanceRecord.create({ data: { sessionId: id, ...data } });
+    const attendee = await prisma.attendanceRecord.upsert({
+      where: {
+        sessionId_studentId: {
+          sessionId: id,
+          studentId,
+        },
+      },
+      update: data,
+      create: { sessionId: id, ...data },
+    });
 
     const updated = await prisma.attendanceSession.findUnique({
       where: { id },

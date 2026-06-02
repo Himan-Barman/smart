@@ -27,6 +27,8 @@ import { useAuth } from '../context/AuthContext';
 import type { AttendanceRosterStudent, AttendanceSession, DayOfWeek, ScheduleSlot } from '../types';
 
 const DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const QR_REFRESH_INTERVAL_MS = 10_000;
+const QR_REFRESH_SECONDS = QR_REFRESH_INTERVAL_MS / 1000;
 
 const normalize = (value?: string | null): string => (value ?? '').trim().toLowerCase();
 
@@ -343,7 +345,7 @@ const TeacherAttendanceView: React.FC = () => {
       void refreshAttendanceSession(activeSession.id).catch((refreshError) => {
         setError(refreshError instanceof Error ? refreshError.message : 'Unable to refresh QR code');
       });
-    }, 5000);
+    }, QR_REFRESH_INTERVAL_MS);
 
     return () => window.clearInterval(interval);
   }, [activeSession?.id, activeSession?.isActive, activeSession?.mode, refreshAttendanceSession]);
@@ -449,7 +451,7 @@ const TeacherAttendanceView: React.FC = () => {
                 <QRCodeSVG value={activeSession.currentQR} size={236} level="H" />
               </div>
               <div className="attendance-qr-meta">
-                <span>Refreshes every 5 seconds</span>
+                <span>Refreshes every {QR_REFRESH_SECONDS} seconds</span>
                 <strong>{secondsLeft}s</strong>
               </div>
               <button className="btn btn--danger btn--lg" onClick={endSession} disabled={busy} type="button">
@@ -489,7 +491,7 @@ const TeacherAttendanceView: React.FC = () => {
             <div className="attendance-panel__head">
               <div>
                 <h3>Start QR Attendance</h3>
-                <span>Select a schedule slot. The server will rotate the QR token every 5 seconds.</span>
+                <span>Select a schedule slot. The server will rotate the QR token every {QR_REFRESH_SECONDS} seconds.</span>
               </div>
             </div>
             {teacherSlots.length === 0 ? (
@@ -704,7 +706,7 @@ const StudentAttendanceView: React.FC = () => {
       const result = await markAttendance(activeSession.id, qrValue);
       setJustMarked(true);
       setScanMessage({ type: 'success', text: result.message ?? 'Attendance marked successfully.' });
-      await loadSessions();
+      void loadSessions().catch(() => undefined);
       window.setTimeout(() => setJustMarked(false), 2400);
     } catch (scanError) {
       const message = scanError instanceof Error ? scanError.message : 'QR scan failed.';
@@ -779,7 +781,7 @@ const StudentAttendanceView: React.FC = () => {
                       setScanMessage({ type: 'error', text: error instanceof Error ? error.message : 'Camera scan failed.' });
                     }}
                     paused={scanInFlightRef.current}
-                    scanDelay={350}
+                    scanDelay={100}
                     sound
                     formats={['qr_code']}
                   />

@@ -3,7 +3,7 @@ import { departmentsMatch, normalizeDepartmentKey } from './department-matching.
 import { mapper } from './mappers.js';
 import { prisma } from './prisma.js';
 
-export const QR_TTL_MS = 5_000;
+export const QR_TTL_MS = 10_000;
 
 export const attendanceUserSelect = {
   id: true,
