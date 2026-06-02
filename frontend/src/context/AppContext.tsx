@@ -31,6 +31,7 @@ interface AppState {
   notices: Notice[];
   addNotice: (notice: Omit<Notice, 'id' | 'date' | 'targetLabel'>) => void;
   deleteNotice: (id: string) => void;
+  refreshNotices: () => Promise<void>;
 
   feedbacks: Feedback[];
   addFeedback: (feedback: Omit<Feedback, 'id' | 'date' | 'status'>) => void;
@@ -232,6 +233,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setSchedule(nextSchedule);
   }, []);
 
+  const refreshNotices = useCallback(async () => {
+    const nextNotices = await retryRequest(() => api.notices.list());
+    setNotices(nextNotices);
+  }, []);
+
   useEffect(() => {
     writePageRoute(currentPage, true);
     // The initial URL sync should only run once after the provider mounts.
@@ -279,6 +285,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       window.removeEventListener('focus', refresh);
     };
   }, [refreshSchedule]);
+
+  useEffect(() => {
+    const refresh = () => {
+      void refreshNotices().catch(() => {});
+    };
+
+    const interval = window.setInterval(refresh, 15000);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('smart-campus-notifications-updated', refresh);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('smart-campus-notifications-updated', refresh);
+    };
+  }, [refreshNotices]);
 
   useEffect(() => {
     const refresh = () => {
@@ -553,6 +575,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         notices,
         addNotice,
         deleteNotice,
+        refreshNotices,
         feedbacks,
         addFeedback,
         userSkills,

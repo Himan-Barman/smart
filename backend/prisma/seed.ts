@@ -104,19 +104,6 @@ async function main(): Promise<void> {
     await prisma.user.create({ data: user });
   }
 
-  const notices = [
-    { id: 'n1', title: 'Mid-Semester Examinations Schedule Released', content: 'The mid-semester examination schedule for Spring 2026 has been released. Students are requested to check the portal for their respective timetables. Any clashes should be reported to the examination cell within 3 working days.', category: 'ACADEMIC', authorName: 'Dr. Rajesh Kumar', date: toDate('2026-04-24'), pinned: true },
-    { id: 'n2', title: 'Annual Tech Fest - InnoVerse 2026', content: 'Get ready for InnoVerse 2026! Three days of innovation, coding challenges, robotics competitions, and guest lectures from industry leaders. Registration opens April 28th. Early bird discounts available!', category: 'EVENT', authorName: 'Student Council', date: toDate('2026-04-23'), pinned: true },
-    { id: 'n3', title: 'Server Maintenance Downtime', content: 'The campus network and student portal will be undergoing scheduled maintenance on April 27th from 11 PM to 5 AM. Please save your work accordingly.', category: 'URGENT', authorName: 'IT Department', date: toDate('2026-04-22'), pinned: false },
-    { id: 'n4', title: 'Library Extended Hours During Exams', content: 'The central library will remain open until midnight during the examination period (May 1-15). Additional reading rooms on the 3rd floor will also be available.', category: 'GENERAL', authorName: 'Library Committee', date: toDate('2026-04-21'), pinned: false },
-    { id: 'n5', title: 'Guest Lecture: AI in Healthcare', content: 'Dr. Priya Sharma from AIIMS will deliver a guest lecture on AI in Healthcare: Current Trends and Future Prospects on April 30th at 3 PM in the Main Auditorium.', category: 'ACADEMIC', authorName: 'Department of CSE', date: toDate('2026-04-20'), pinned: false },
-    { id: 'n6', title: 'Campus Placement Drive - TCS & Infosys', content: 'TCS and Infosys will be conducting on-campus placement drives on May 5-6. Eligible students (CGPA >= 7.0) must register on the placement portal by April 28th.', category: 'EVENT', authorName: 'Placement Cell', date: toDate('2026-04-19'), pinned: false },
-  ];
-
-  for (const notice of notices) {
-    await prisma.notice.create({ data: notice });
-  }
-
   const feedbacks = [
     { id: 'f1', type: 'COURSE', subject: 'Data Structures & Algorithms', message: 'Excellent course content and practical assignments. The lab sessions are very helpful.', rating: 5, anonymous: false, date: toDate('2026-04-24'), status: 'REVIEWED', userId: 'ADMIN001' },
     { id: 'f2', type: 'INFRASTRUCTURE', subject: 'Computer Lab - Block A', message: 'Some systems in Lab 3 are running slow. Need hardware upgrade for better performance.', rating: 3, anonymous: true, date: toDate('2026-04-23'), status: 'PENDING', userId: 'ADMIN001' },
@@ -259,7 +246,6 @@ async function main(): Promise<void> {
   }
 
   const notifications = [
-    { title: 'New Notice Posted', desc: 'Mid-semester exam schedule released for all departments.', date: new Date('2026-04-24T10:00:00.000Z'), type: 'INFO', userId: 'ADMIN001' },
     { title: 'Grievance Updated', desc: 'Your grievance #102 is marked resolved.', date: new Date('2026-04-24T07:00:00.000Z'), type: 'SUCCESS', userId: 'ADMIN001' },
     { title: 'Room Booking Confirmed', desc: 'Lecture Hall A booked for tomorrow at 10:00 AM.', date: new Date('2026-04-23T09:00:00.000Z'), type: 'INFO', userId: 'TCH001' },
     { title: 'Assignment Due', desc: 'CS301 Data Structures assignment is due tomorrow.', date: new Date('2026-04-23T14:30:00.000Z'), type: 'WARNING', userId: 'STU001' },
