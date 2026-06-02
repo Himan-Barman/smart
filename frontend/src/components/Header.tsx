@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api';
 import { Menu, Bell, Search, LogOut, X, Building2, BookOpen, Scale, DoorOpen, CalendarDays, Megaphone, ArrowLeft } from 'lucide-react';
+import type { PageType } from '../types';
 
 type HeaderNotification = {
   id: string;
@@ -11,6 +12,23 @@ type HeaderNotification = {
   desc: string;
   date: string;
   unread: boolean;
+};
+
+const pageLabels: Record<PageType, string> = {
+  dashboard: 'Dashboard',
+  schedule: 'Schedule',
+  departments: 'Departments',
+  department_detail: 'Department',
+  course_detail: 'Course',
+  notices: 'Notice Board',
+  feedback: 'Feedback',
+  skills: 'Skills',
+  rooms: 'Rooms',
+  grievances: 'Grievances',
+  attendance: 'Attendance',
+  admin_upload: 'Users',
+  profile: 'Profile',
+  notifications: 'Notifications',
 };
 
 const Header: React.FC = () => {
@@ -28,6 +46,7 @@ const Header: React.FC = () => {
   
   const notifRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -195,14 +214,35 @@ const Header: React.FC = () => {
             <Menu size={22} />
           </button>
         )}
+        <div className="header__mobile-copy">
+          <span>{pageLabels[currentPage]}</span>
+          <small>{currentUser ? `${currentUser.role} - ${currentUser.department || 'Campus'}` : 'Smart Campus'}</small>
+        </div>
       </div>
 
       <div className="header__right">
         {/* Real-time Expandable Search */}
         <div className="header__search-wrap" ref={searchRef}>
+          <button
+            className={`header__mobile-search-btn ${searchOpen ? 'active' : ''}`}
+            onClick={() => {
+              setSearchOpen((open) => {
+                const nextOpen = !open;
+                if (nextOpen) {
+                  window.setTimeout(() => searchInputRef.current?.focus(), 0);
+                }
+                return nextOpen;
+              });
+            }}
+            aria-label="Search campus"
+            type="button"
+          >
+            <Search size={18} />
+          </button>
           <div className={`header__search ${searchOpen ? 'header__search--expanded' : ''}`}>
             <Search size={16} className="search-icon-left" />
             <input 
+              ref={searchInputRef}
               type="text" 
               placeholder="Search campus..." 
               value={searchQuery}

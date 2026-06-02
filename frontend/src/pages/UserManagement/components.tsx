@@ -75,18 +75,18 @@ export const UserTable: React.FC<TableProps> = ({ data, selected, onToggle, onTo
       <tbody>
         {data.map(p => (
           <tr key={p.id} className={selected.has(p.id) ? 'um-row--selected' : ''}>
-            <td><input type="checkbox" className="um-checkbox" checked={selected.has(p.id)} onChange={() => onToggle(p.id)}/></td>
-            <td>
+            <td data-label="Select"><input type="checkbox" className="um-checkbox" checked={selected.has(p.id)} onChange={() => onToggle(p.id)}/></td>
+            <td data-label="User">
               <div className="um-user-cell">
                 <div className="um-user-cell__avatar" style={{background: getAvatarGradient(p.role)}}>{getInitials(p.name)}</div>
                 <div><span className="um-user-cell__name">{p.name}</span><span className="um-user-cell__email">{p.email}</span></div>
               </div>
             </td>
-            <td><span className={`um-badge um-badge--${p.role}`}>{roleLabel(p.role)}</span></td>
+            <td data-label="Role"><span className={`um-badge um-badge--${p.role}`}>{roleLabel(p.role)}</span></td>
             <td style={{fontSize:'13px'}}>{p.department || '—'}</td>
-            <td>{p.isVerified ? <span className="um-badge um-badge--verified"><CheckCircle size={11}/> Verified</span> : <span className="um-badge um-badge--pending"><Clock size={11}/> Pending Signup</span>}</td>
-            <td style={{fontSize:'12px',color:'var(--text-muted)'}}>{formatDate(p.createdAt)}</td>
-            <td><ActionMenu person={p} onAction={onAction}/></td>
+            <td data-label="Account">{p.isVerified ? <span className="um-badge um-badge--verified"><CheckCircle size={11}/> Verified</span> : <span className="um-badge um-badge--pending"><Clock size={11}/> Pending Signup</span>}</td>
+            <td data-label="Added On" style={{fontSize:'12px',color:'var(--text-muted)'}}>{formatDate(p.createdAt)}</td>
+            <td data-label="Actions"><ActionMenu person={p} onAction={onAction}/></td>
           </tr>
         ))}
         {data.length === 0 && <tr><td colSpan={7} style={{textAlign:'center',padding:'40px',color:'var(--text-muted)'}}>No users found</td></tr>}

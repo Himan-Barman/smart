@@ -5,7 +5,7 @@ import type { PageType } from '../types';
 import {
   LayoutDashboard, Megaphone, MessageSquare, Target,
   DoorOpen, Scale, QrCode, X, GraduationCap,
-  Upload, CalendarDays, Building2,
+  Upload, CalendarDays, Building2, LogOut, UserCircle,
 } from 'lucide-react';
 
 interface NavItem {
@@ -30,10 +30,24 @@ const allNavItems: NavItem[] = [
 
 const Sidebar: React.FC = () => {
   const { currentPage, setCurrentPage, sidebarOpen, setSidebarOpen } = useApp();
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
 
   const role = currentUser?.role || 'student';
   const navItems = allNavItems.filter(item => item.roles.includes(role));
+  const mobileNavOrder: Record<typeof role, PageType[]> = {
+    admin: ['dashboard', 'schedule', 'attendance', 'admin_upload', 'departments'],
+    teacher: ['dashboard', 'schedule', 'attendance', 'notices', 'rooms'],
+    student: ['dashboard', 'schedule', 'attendance', 'notices', 'skills'],
+  };
+  const mobileNavItems = mobileNavOrder[role]
+    .map((id) => navItems.find((item) => item.id === id))
+    .filter((item): item is NavItem => Boolean(item));
+
+  const getInitials = (name: string) => {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length > 1) return `${parts[0][0]}${parts[parts.length - 1][0]}`;
+    return parts[0]?.slice(0, 2) || 'SC';
+  };
 
   return (
     <>
@@ -61,9 +75,26 @@ const Sidebar: React.FC = () => {
           </button>
         </div>
 
+        {currentUser && (
+          <button
+            className="sidebar__mobile-user"
+            onClick={() => {
+              setCurrentPage('profile');
+              setSidebarOpen(false);
+            }}
+            type="button"
+          >
+            <span className="sidebar__mobile-avatar">{getInitials(currentUser.name).toUpperCase()}</span>
+            <span className="sidebar__mobile-user-meta">
+              <strong>{currentUser.name}</strong>
+              <small>{currentUser.role} - {currentUser.department || 'Smart Campus'}</small>
+            </span>
+          </button>
+        )}
 
 
         <nav className="sidebar__nav">
+          <span className="sidebar__mobile-label">Main Menu</span>
           {navItems.map(item => (
             <button
               key={item.id}
@@ -80,8 +111,41 @@ const Sidebar: React.FC = () => {
           ))}
         </nav>
 
+        <div className="sidebar__mobile-footer">
+          <button
+            type="button"
+            onClick={() => {
+              setCurrentPage('profile');
+              setSidebarOpen(false);
+            }}
+          >
+            <UserCircle size={18} />
+            Profile
+          </button>
+          <button type="button" onClick={logout}>
+            <LogOut size={18} />
+            Logout
+          </button>
+        </div>
 
       </aside>
+
+      <nav className="mobile-bottom-nav" aria-label="Mobile primary navigation">
+        {mobileNavItems.map((item) => (
+          <button
+            key={item.id}
+            className={`mobile-bottom-nav__item ${currentPage === item.id ? 'mobile-bottom-nav__item--active' : ''}`}
+            onClick={() => {
+              setCurrentPage(item.id);
+              setSidebarOpen(false);
+            }}
+            type="button"
+          >
+            <span className="mobile-bottom-nav__icon">{item.icon}</span>
+            <span>{item.label.replace('User Management', 'Users').replace('Notice Board', 'Notices')}</span>
+          </button>
+        ))}
+      </nav>
     </>
   );
 };
