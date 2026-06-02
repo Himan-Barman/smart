@@ -25,10 +25,18 @@ export const attendanceRouter = Router();
 
 const QR_GRACE_MS = 10_000;
 const QR_HISTORY_LIMIT = 6;
+let attendanceSchemaWarningShown = false;
 
 attendanceRouter.use(requireAuth);
 attendanceRouter.use(asyncHandler(async (_req, _res, next) => {
-  await ensureAttendanceSchema();
+  try {
+    await ensureAttendanceSchema();
+  } catch (error) {
+    if (!attendanceSchemaWarningShown) {
+      attendanceSchemaWarningShown = true;
+      console.error('Attendance schema sync failed; continuing with existing schema', error);
+    }
+  }
   next();
 }));
 
