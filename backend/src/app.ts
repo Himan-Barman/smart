@@ -1,7 +1,6 @@
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import express from 'express';
-import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { existsSync } from 'node:fs';
@@ -11,6 +10,7 @@ import { env } from './config/env.js';
 import { apiRouter } from './modules/index.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { HttpError } from './lib/errors.js';
+import { apiRateLimiter } from './middleware/rate-limit.js';
 
 export const app = express();
 
@@ -48,12 +48,8 @@ app.use(
   }),
 );
 app.use(
-  rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 200,
-    standardHeaders: true,
-    legacyHeaders: false,
-  }),
+  '/api/v1',
+  apiRateLimiter,
 );
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());

@@ -18,7 +18,7 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default('*'),
   SERVE_FRONTEND: z.enum(['true', 'false', '1', '0']).default('false').transform((value) => value === 'true' || value === '1'),
   FRONTEND_DIST_PATH: z.string().optional(),
-  TRUST_PROXY: z.enum(['true', 'false', '1', '0']).default('false').transform((value) => value === 'true' || value === '1'),
+  TRUST_PROXY: z.enum(['true', 'false', '1', '0']).transform((value) => value === 'true' || value === '1').optional(),
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().optional(),
 });
@@ -34,4 +34,5 @@ export const env = {
   ...parsed.data,
   JWT_ACCESS_SECRET: parsed.data.JWT_ACCESS_SECRET ?? parsed.data.JWT_SECRET,
   JWT_REFRESH_SECRET: parsed.data.JWT_REFRESH_SECRET ?? `${parsed.data.JWT_SECRET}:refresh`,
+  TRUST_PROXY: parsed.data.TRUST_PROXY ?? (parsed.data.NODE_ENV === 'production'),
 };

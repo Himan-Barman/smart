@@ -11,6 +11,7 @@ import { hashPassword, verifyPassword } from '../../lib/password.js';
 import { prisma } from '../../lib/prisma.js';
 import { serializer } from '../../lib/serializers.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { loginRateLimiter, refreshRateLimiter } from '../../middleware/rate-limit.js';
 import { sendOtpEmail } from '../../lib/email.js';
 
 export const authRouter = Router();
@@ -215,6 +216,7 @@ const rotateSession = async (refreshToken: string, res: Response): Promise<{ acc
 // ─── LOGIN ───
 authRouter.post(
   '/login',
+  loginRateLimiter,
   asyncHandler(async (req, res) => {
     const payload = loginSchema.parse(req.body);
     const email = payload.email.toLowerCase();
@@ -409,6 +411,7 @@ authRouter.post(
 // ─── CURRENT USER ───
 authRouter.post(
   '/refresh',
+  refreshRateLimiter,
   asyncHandler(async (req, res) => {
     const refreshToken = req.cookies?.[env.REFRESH_TOKEN_COOKIE_NAME] as string | undefined;
     if (!refreshToken) {

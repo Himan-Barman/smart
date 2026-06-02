@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   GraduationCap, Lock, Eye, EyeOff, ArrowRight,
@@ -14,20 +14,27 @@ const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const loginInFlightRef = useRef(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loginInFlightRef.current) return;
+
     setError('');
     if (!username.trim()) { setError('Enter your username'); return; }
     if (!password.trim()) { setError('Enter your password'); return; }
 
-    const fullEmail = username.trim().toLowerCase() + EMAIL_DOMAIN;
+    const normalizedUsername = username.trim().toLowerCase();
+    const fullEmail = normalizedUsername.includes('@') ? normalizedUsername : normalizedUsername + EMAIL_DOMAIN;
+    loginInFlightRef.current = true;
     setLoading(true);
-    setTimeout(async () => {
-      const r = await login(fullEmail, password);
-      if (!r.success) setError(r.message);
+
+    const result = await login(fullEmail, password);
+    if (!result.success) {
+      setError(result.message);
       setLoading(false);
-    }, 600);
+      loginInFlightRef.current = false;
+    }
   };
 
   return (
