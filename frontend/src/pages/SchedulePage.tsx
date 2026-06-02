@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
-import type { DayOfWeek, ScheduleSlot } from '../types';
+import type { DayOfWeek, Department, ScheduleSlot } from '../types';
 import AdvancedTimePicker from '../components/AdvancedTimePicker';
 import SuggestInput from '../components/SuggestInput';
 import type { SuggestOption } from '../components/SuggestInput';
@@ -91,6 +91,51 @@ const subjectTypeColor = (type: string) => {
   }
 };
 
+const normalizeScopeKey = (value?: string | null): string =>
+  (value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+const uniqueScopeValues = (values: string[]): string[] => {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const key = normalizeScopeKey(value);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const rawDepartmentAliases = (value?: string | null): string[] => {
+  const trimmed = (value ?? '').trim();
+  if (!trimmed) return [];
+
+  const aliases = [trimmed];
+  const displayMatch = trimmed.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+  if (displayMatch) {
+    aliases.push(displayMatch[1].trim(), displayMatch[2].trim());
+  }
+
+  return uniqueScopeValues(aliases);
+};
+
+const departmentAliasesFor = (departments: Department[], value?: string | null): string[] => {
+  const rawAliases = rawDepartmentAliases(value);
+  const rawKeys = new Set(rawAliases.map(normalizeScopeKey));
+  const matchedDepartment = departments.find((department) =>
+    [department.name, department.code, department.course].some((candidate) =>
+      rawKeys.has(normalizeScopeKey(candidate)),
+    ),
+  );
+
+  if (!matchedDepartment) return rawAliases;
+  return uniqueScopeValues([...rawAliases, matchedDepartment.name, matchedDepartment.code, matchedDepartment.course]);
+};
+
+const departmentsMatch = (departments: Department[], left?: string | null, right?: string | null): boolean => {
+  const leftKeys = new Set(departmentAliasesFor(departments, left).map(normalizeScopeKey));
+  if (leftKeys.size === 0) return false;
+  return departmentAliasesFor(departments, right).some((alias) => leftKeys.has(normalizeScopeKey(alias)));
+};
+
 const emptyForm: Omit<ScheduleSlot, 'id'> = {
   day: 'Monday',
   startTime: '09:00',
@@ -127,21 +172,21 @@ const SchedulePage: React.FC = () => {
     let slots = schedule;
     if (role === 'student') {
       slots = slots.filter((slot) =>
-        slot.department === currentUser?.department &&
-        slot.semester === currentUser?.semester &&
-        slot.course === currentUser?.course,
+        departmentsMatch(departments, slot.department, currentUser?.department) &&
+        slot.semester === currentUser?.semester,
       );
     } else if (role === 'teacher') {
       if (filterDept === 'mine') {
-        slots = slots.filter((slot) => slot.facultyId === currentUser?.id || slot.facultyId === currentUser?.employeeId);
+        const teacherIds = [currentUser?.id, currentUser?.employeeId].map(normalizeScopeKey).filter(Boolean);
+        slots = slots.filter((slot) => teacherIds.includes(normalizeScopeKey(slot.facultyId)));
       } else if (filterDept !== 'all') {
-        slots = slots.filter((slot) => slot.department === filterDept);
+        slots = slots.filter((slot) => departmentsMatch(departments, slot.department, filterDept));
       }
     } else if (filterDept !== 'all') {
-      slots = slots.filter((slot) => slot.department === filterDept);
+      slots = slots.filter((slot) => departmentsMatch(departments, slot.department, filterDept));
     }
     return slots;
-  }, [schedule, role, currentUser, filterDept]);
+  }, [schedule, role, currentUser, filterDept, departments]);
 
   const filteredSchedule = useMemo(() =>
     scopedSchedule

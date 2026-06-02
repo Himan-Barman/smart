@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { ScheduleSlot } from '@prisma/client';
 import { z } from 'zod';
 import { asyncHandler } from '../../lib/async-handler.js';
+import { departmentsMatch, normalizeDepartmentKey } from '../../lib/department-matching.js';
 import { HttpError } from '../../lib/errors.js';
 import { mapper } from '../../lib/mappers.js';
 import { createUserNotifications } from '../../lib/notifications.js';
@@ -53,8 +54,7 @@ type ManagedDepartment = {
   }>;
 };
 
-const normalizeDepartmentKey = (value: string): string => value.trim().toLowerCase();
-const normalizeOptionalKey = (value: string | null | undefined): string => (value ?? '').trim().toLowerCase();
+const normalizeOptionalKey = (value: string | null | undefined): string => normalizeDepartmentKey(value);
 
 const resolveManagedDepartment = async (value: string): Promise<ManagedDepartment> => {
   const departments = await prisma.department.findMany({
@@ -76,10 +76,7 @@ const resolveManagedDepartment = async (value: string): Promise<ManagedDepartmen
       },
     },
   });
-  const department = departments.find((candidate) =>
-    normalizeDepartmentKey(candidate.name) === normalizeDepartmentKey(value) ||
-    normalizeDepartmentKey(candidate.code) === normalizeDepartmentKey(value),
-  );
+  const department = departments.find((candidate) => departmentsMatch(departments, candidate.name, value));
 
   if (!department) {
     throw new HttpError(400, 'Department must be selected from the Departments page list.');
@@ -166,18 +163,21 @@ const hasTimeOverlap = (aStart: string, aEnd: string, bStart: string, bEnd: stri
 };
 
 const assertNoScheduleConflicts = async (candidate: ScheduleWriteData, ignoreId?: string): Promise<void> => {
-  const sameDaySlots = await prisma.scheduleSlot.findMany({
-    where: {
-      day: candidate.day,
-      ...(ignoreId ? { NOT: { id: ignoreId } } : {}),
-    },
-  });
+  const [sameDaySlots, departments] = await Promise.all([
+    prisma.scheduleSlot.findMany({
+      where: {
+        day: candidate.day,
+        ...(ignoreId ? { NOT: { id: ignoreId } } : {}),
+      },
+    }),
+    prisma.department.findMany({ select: { name: true, code: true, course: true } }),
+  ]);
 
   const conflict = sameDaySlots.find((slot) => {
     if (!hasTimeOverlap(candidate.startTime, candidate.endTime, slot.startTime, slot.endTime)) return false;
 
     const classGroupConflict =
-      normalizeDepartmentKey(slot.department) === normalizeDepartmentKey(candidate.department) &&
+      departmentsMatch(departments, slot.department, candidate.department) &&
       slot.semester === candidate.semester &&
       normalizeDepartmentKey(slot.course) === normalizeDepartmentKey(candidate.course) &&
       sectionsOverlap(slot.section, candidate.section);
@@ -261,16 +261,18 @@ const scheduleDescription = (slot: ScheduleSlot): string =>
 const findScheduleRecipients = async (slots: ScheduleSlot[]): Promise<string[]> => {
   if (slots.length === 0) return [];
 
-  const users = await prisma.user.findMany({
-    select: {
-      id: true,
-      role: true,
-      department: true,
-      employeeId: true,
-      semester: true,
-      course: true,
-    },
-  });
+  const [users, departments] = await Promise.all([
+    prisma.user.findMany({
+      select: {
+        id: true,
+        role: true,
+        department: true,
+        employeeId: true,
+        semester: true,
+      },
+    }),
+    prisma.department.findMany({ select: { name: true, code: true, course: true } }),
+  ]);
 
   return users
     .filter((user) => {
@@ -279,13 +281,13 @@ const findScheduleRecipients = async (slots: ScheduleSlot[]): Promise<string[]> 
 
       return slots.some((slot) => {
         if (role === 'teacher') {
-          return normalizeOptionalKey(user.id) === normalizeDepartmentKey(slot.facultyId) ||
+          return departmentsMatch(departments, user.department, slot.department) ||
+            normalizeOptionalKey(user.id) === normalizeDepartmentKey(slot.facultyId) ||
             normalizeOptionalKey(user.employeeId) === normalizeDepartmentKey(slot.facultyId);
         }
 
-        return normalizeDepartmentKey(user.department) === normalizeDepartmentKey(slot.department) &&
-          user.semester === slot.semester &&
-          normalizeOptionalKey(user.course) === normalizeDepartmentKey(slot.course);
+        return departmentsMatch(departments, user.department, slot.department) &&
+          user.semester === slot.semester;
       });
     })
     .map((user) => user.id);

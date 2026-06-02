@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { departmentsMatch, normalizeDepartmentKey } from './department-matching.js';
 import { mapper } from './mappers.js';
 import { prisma } from './prisma.js';
 
@@ -10,48 +11,44 @@ const orderBy: Prisma.ScheduleSlotOrderByWithRelationInput[] = [
 ];
 
 export const findScheduleForUser = async (userId: string, authRole: AuthRole) => {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      role: true,
-      department: true,
-      employeeId: true,
-      semester: true,
-      course: true,
-    },
-  });
+  const [user, departments, slots] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        role: true,
+        department: true,
+        employeeId: true,
+        semester: true,
+      },
+    }),
+    prisma.department.findMany({ select: { name: true, code: true, course: true } }),
+    prisma.scheduleSlot.findMany({ orderBy }),
+  ]);
 
   if (!user) return [];
 
   const role = mapper.roleToClient(user.role) || authRole;
 
   if (role === 'admin') {
-    return prisma.scheduleSlot.findMany({ orderBy });
+    return slots;
   }
 
   if (role === 'student') {
-    if (!user.semester || !user.course) return [];
+    if (!user.semester) return [];
 
-    return prisma.scheduleSlot.findMany({
-      where: {
-        department: user.department,
-        semester: user.semester,
-        course: user.course,
-      },
-      orderBy,
-    });
+    return slots.filter((slot) =>
+      departmentsMatch(departments, slot.department, user.department) &&
+      slot.semester === user.semester,
+    );
   }
 
-  const teacherIds = [user.id, user.employeeId].filter((value): value is string => Boolean(value));
+  const teacherIds = [user.id, user.employeeId]
+    .filter((value): value is string => Boolean(value))
+    .map(normalizeDepartmentKey);
 
-  return prisma.scheduleSlot.findMany({
-    where: {
-      OR: [
-        { department: user.department },
-        ...(teacherIds.length > 0 ? [{ facultyId: { in: teacherIds } }] : []),
-      ],
-    },
-    orderBy,
-  });
+  return slots.filter((slot) =>
+    departmentsMatch(departments, slot.department, user.department) ||
+    teacherIds.includes(normalizeDepartmentKey(slot.facultyId)),
+  );
 };
