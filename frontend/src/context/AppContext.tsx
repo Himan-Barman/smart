@@ -29,7 +29,7 @@ interface AppState {
   setSidebarOpen: (open: boolean) => void;
 
   notices: Notice[];
-  addNotice: (notice: Omit<Notice, 'id' | 'date'>) => void;
+  addNotice: (notice: Omit<Notice, 'id' | 'date' | 'targetLabel'>) => void;
   deleteNotice: (id: string) => void;
 
   feedbacks: Feedback[];
@@ -306,7 +306,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
   }, []);
 
-  const addNotice = useCallback((notice: Omit<Notice, 'id' | 'date'>) => {
+  const addNotice = useCallback((notice: Omit<Notice, 'id' | 'date' | 'targetLabel'>) => {
     const tempId = `tmp-${generateId()}`;
     const optimistic: Notice = {
       ...notice,
@@ -318,6 +318,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     void api.notices.create({ ...notice, author: notice.author }).then((created) => {
       setNotices((prev) => replaceById(prev, tempId, created));
+      notifyNotificationsChanged();
+    }).catch((error) => {
+      setNotices((prev) => prev.filter((item) => item.id !== tempId));
+      window.alert(error instanceof Error ? error.message : 'Unable to publish notice');
     });
   }, []);
 

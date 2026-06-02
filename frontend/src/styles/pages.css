@@ -96,6 +96,7 @@
 .notice-card--pinned { border-left: 3px solid var(--accent-blue); }
 .notice-card__header { display: flex; align-items: center; gap: 8px; }
 .notice-card__badge { padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+.notice-card__audience { min-width: 0; display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 999px; background: rgba(20,20,22,0.05); color: var(--text-secondary); font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .notice-card__pin { color: var(--accent-gold); margin-left: auto; }
 .notice-card__delete { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; margin-left: 6px; opacity: 0; transition: all 0.2s; border-radius: 6px; }
 .notice-card:hover .notice-card__delete { opacity: 1; }
@@ -104,6 +105,13 @@
 .notice-card__content { font-size: 14px; color: var(--text-secondary); line-height: 1.4; flex: 1; }
 .notice-card__footer { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); padding-top: 12px; border-top: 1px solid var(--glass-border); }
 .notice-card__footer span { display: flex; align-items: center; gap: 5px; }
+.notice-target-box { display: flex; flex-direction: column; gap: 16px; padding: 16px; border: 1px solid var(--glass-border); border-radius: 14px; background: rgba(248,249,251,0.85); }
+.notice-target-box__head { display: flex; align-items: flex-start; gap: 10px; color: var(--text-primary); }
+.notice-target-box__head > svg { margin-top: 2px; color: var(--accent-purple); }
+.notice-target-box__head strong,
+.notice-target-box__head span { display: block; }
+.notice-target-box__head strong { font-size: 13px; font-weight: 800; }
+.notice-target-box__head span { margin-top: 2px; color: var(--text-muted); font-size: 12px; font-weight: 600; }
 
 /* ===== FEEDBACK ===== */
 .feedback-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
@@ -254,6 +262,8 @@
   .dashboard__grid { grid-template-columns: 1fr; }
   .dashboard__stats { grid-template-columns: 1fr 1fr; }
   .notice-grid, .feedback-grid, .rooms-grid { grid-template-columns: 1fr; }
+  .notice-card__header { flex-wrap: wrap; }
+  .notice-card__audience { max-width: 100%; }
   .grievance-card__main, .booking-card { flex-direction: column; align-items: flex-start; }
 }
 @media (max-width: 480px) {

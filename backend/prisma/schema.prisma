@@ -86,16 +86,23 @@ model OtpCode {
 }
 
 model Notice {
-  id         String   @id @default(cuid())
-  title      String
-  content    String
-  category   String
-  authorName String
-  pinned     Boolean  @default(false)
-  date       DateTime @default(now())
-  authorId   String?
+  id               String   @id @default(cuid())
+  title            String
+  content          String
+  category         String
+  authorName       String
+  pinned           Boolean  @default(false)
+  date             DateTime @default(now())
+  authorId         String?
+  targetRole       String   @default("ALL")
+  targetDepartment String?
+  targetSemester   Int?
+  targetCourse     String?
 
   author User? @relation("NoticeAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([targetRole])
+  @@index([targetDepartment, targetSemester])
 }
 
 model Feedback {

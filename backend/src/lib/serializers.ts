@@ -19,6 +19,7 @@ import type {
   User,
 } from '@prisma/client';
 import { mapper } from './mappers.js';
+import { noticeTargetLabel, noticeTargetRoleToClient } from './notice-targeting.js';
 
 type SerializableUser = Pick<
   User,
@@ -108,8 +109,14 @@ export const serializer = {
       content: notice.content,
       category: mapper.noticeCategoryToClient(notice.category),
       author: notice.authorName,
+      authorId: notice.authorId ?? undefined,
       date: mapper.date(notice.date),
       pinned: notice.pinned,
+      targetRole: noticeTargetRoleToClient(notice.targetRole),
+      targetDepartment: notice.targetDepartment ?? undefined,
+      targetSemester: notice.targetSemester ?? undefined,
+      targetCourse: notice.targetCourse ?? undefined,
+      targetLabel: noticeTargetLabel(notice),
     };
   },
 

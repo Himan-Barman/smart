@@ -294,7 +294,7 @@ export const api = {
   },
 
   notices: {
-    create(payload: Omit<Notice, 'id' | 'date'> & { author: string }) {
+    create(payload: Omit<Notice, 'id' | 'date' | 'targetLabel'> & { author: string }) {
       return request<Notice>('/notices', { method: 'POST', body: payload });
     },
     remove(id: string) {

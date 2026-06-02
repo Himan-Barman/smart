@@ -4,6 +4,7 @@ import { findActiveAttendanceSessionForUser } from '../../lib/attendance-access.
 import { ensureAttendanceSchema } from '../../lib/attendance-schema.js';
 import { withDbReadRetry } from '../../lib/db-read-retry.js';
 import { getManagedUserData, type ManagedUserData } from '../../lib/managed-users.js';
+import { findVisibleNoticesForUser } from '../../lib/notice-targeting.js';
 import { prisma } from '../../lib/prisma.js';
 import { findScheduleForUser } from '../../lib/schedule-access.js';
 import { serializer } from '../../lib/serializers.js';
@@ -68,7 +69,7 @@ appDataRouter.get(
 
     const notices = await safeBootstrapQuery(
       'notices',
-      () => prisma.notice.findMany({ orderBy: [{ pinned: 'desc' }, { date: 'desc' }] }),
+      () => findVisibleNoticesForUser(userId),
       [],
     );
     const feedbacks = await safeBootstrapQuery(

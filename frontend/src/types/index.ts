@@ -41,8 +41,14 @@ export interface Notice {
   content: string;
   category: 'academic' | 'event' | 'urgent' | 'general';
   author: string;
+  authorId?: string;
   date: string;
   pinned: boolean;
+  targetRole?: 'all' | 'admin' | 'teacher' | 'student';
+  targetDepartment?: string;
+  targetSemester?: number;
+  targetCourse?: string;
+  targetLabel?: string;
 }
 
 export interface Feedback {
