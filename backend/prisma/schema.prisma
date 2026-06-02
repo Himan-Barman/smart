@@ -238,9 +238,15 @@ model AttendanceRecord {
   status      String  @default("PRESENT")
   mode        String  @default("QR")
   department  String?
+  academicYear String?
+  year        Int?
   semester    Int?
   course      String?
+  subjectName String?
   courseCode  String?
+  facultyId   String?
+  facultyName String?
+  room        String?
   scheduleId  String?
   markedById  String?
   markedAt    DateTime @default(now())
@@ -253,6 +259,7 @@ model AttendanceRecord {
   @@index([userId])
   @@index([scheduleId])
   @@index([department, semester])
+  @@index([academicYear, department, semester])
 }
 
 model ScheduleSlot {

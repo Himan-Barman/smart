@@ -358,7 +358,7 @@ export const api = {
       return request<AttendanceSession>(`/attendance/session/${id}/refresh`, { method: 'POST' });
     },
     mark(id: string, payload: { qrCode: string }) {
-      return request<{ success: boolean; attendee?: AttendanceSession['attendees'][number]; message?: string }>(`/attendance/session/${id}/mark`, {
+      return request<{ success: boolean; attendee?: AttendanceSession['attendees'][number]; session?: AttendanceSession; message?: string }>(`/attendance/session/${id}/mark`, {
         method: 'POST',
         body: payload,
       });

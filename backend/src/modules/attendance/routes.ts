@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
-import type { RegisteredPerson, ScheduleSlot, User } from '@prisma/client';
+import type { AttendanceSession, RegisteredPerson, ScheduleSlot, User } from '@prisma/client';
 import { z } from 'zod';
 import {
   QR_TTL_MS,
@@ -23,6 +23,8 @@ import { requireAuth, requireRole } from '../../middleware/auth.js';
 
 export const attendanceRouter = Router();
 
+const QR_GRACE_MS = 10_000;
+
 attendanceRouter.use(requireAuth);
 attendanceRouter.use(asyncHandler(async (_req, _res, next) => {
   await ensureAttendanceSchema();
@@ -36,6 +38,30 @@ const nextQrExpiry = (): Date => new Date(Date.now() + QR_TTL_MS);
 
 const randomQr = (sessionId?: string): string =>
   `SMARTCAMPUS|ATT|${sessionId ?? 'NEW'}|${Date.now()}|${randomUUID()}`;
+
+const qrIssuedAt = (qr: string): number | null => {
+  const parts = qr.split('|');
+  const issuedAt = Number(parts[3]);
+  return Number.isFinite(issuedAt) && issuedAt > 0 ? issuedAt : null;
+};
+
+const qrCodesForSession = (session: Pick<AttendanceSession, 'currentQR' | 'qrHistory'>): string[] => [
+  session.currentQR,
+  ...(serializer.toSubjectList(session.qrHistory) ?? []),
+].filter(Boolean);
+
+const qrIsValidForSession = (
+  session: Pick<AttendanceSession, 'currentQR' | 'qrHistory' | 'qrExpiresAt'>,
+  scannedQr: string,
+): boolean => {
+  if (!qrCodesForSession(session).includes(scannedQr)) return false;
+
+  const issuedAt = qrIssuedAt(scannedQr);
+  if (issuedAt) return Date.now() <= issuedAt + QR_TTL_MS + QR_GRACE_MS;
+  if (!session.qrExpiresAt) return scannedQr === session.currentQR;
+
+  return Date.now() <= session.qrExpiresAt.getTime() + QR_GRACE_MS;
+};
 
 const sessionMode = (value?: string): 'qr' | 'manual' | 'hybrid' => {
   if (value === 'manual') return 'manual';
@@ -171,6 +197,33 @@ const appendQrHistory = (historyValue: string | null, qr: string): string => {
   const history = serializer.toSubjectList(historyValue) ?? [];
   return serializer.fromSubjectList([...history, qr].slice(-120)) ?? qr;
 };
+
+const academicYearFor = (date: Date): string => {
+  const year = date.getFullYear();
+  const startsThisYear = date.getMonth() >= 6;
+  const start = startsThisYear ? year : year - 1;
+  return `${start}-${start + 1}`;
+};
+
+const semesterYear = (semester?: number | null): number | null =>
+  semester ? Math.ceil(semester / 2) : null;
+
+const recordScopeFor = (session: Pick<
+  AttendanceSession,
+  'date' | 'department' | 'semester' | 'course' | 'courseName' | 'courseCode' | 'facultyId' | 'faculty' | 'room' | 'scheduleId'
+>) => ({
+  academicYear: academicYearFor(session.date),
+  year: semesterYear(session.semester),
+  department: session.department,
+  semester: session.semester,
+  course: session.course,
+  subjectName: session.courseName,
+  courseCode: session.courseCode,
+  facultyId: session.facultyId,
+  facultyName: session.faculty,
+  room: session.room,
+  scheduleId: session.scheduleId,
+});
 
 const studentRecordId = (student: Pick<User, 'id' | 'enrollmentNo'> | Pick<RegisteredPerson, 'id' | 'enrollmentNo'>): string =>
   student.enrollmentNo || student.id;
@@ -414,12 +467,19 @@ attendanceRouter.post(
     if (!session || !session.isActive) throw new HttpError(400, 'No active session');
     if (!await studentMatchesSession(user, session)) throw new HttpError(403, 'This attendance session is not for your department and semester.');
     if (session.mode === 'MANUAL') throw new HttpError(400, 'This session is manual attendance only.');
-    if (payload.qrCode !== session.currentQR) throw new HttpError(400, 'QR code expired or invalid');
-    if (session.qrExpiresAt && session.qrExpiresAt.getTime() < Date.now()) throw new HttpError(400, 'QR code expired. Scan the latest QR.');
+    if (!qrIsValidForSession(session, payload.qrCode)) throw new HttpError(400, 'QR code expired or invalid. Scan the latest QR.');
 
     const studentId = publicStudentId(user);
     const existing = session.attendees.find((attendee) => normalizeDepartmentKey(attendee.studentId) === normalizeDepartmentKey(studentId));
-    if (existing?.status === 'PRESENT') throw new HttpError(409, 'Attendance already marked');
+    if (existing?.status === 'PRESENT') {
+      res.json({
+        success: true,
+        message: 'Attendance already marked',
+        attendee: serializer.attendanceSession(session, [existing]).attendees[0],
+        session: serializer.attendanceSession(session, session.attendees),
+      });
+      return;
+    }
 
     const data = {
       studentId,
@@ -429,11 +489,7 @@ attendanceRouter.post(
       verified: true,
       status: 'PRESENT',
       mode: 'QR',
-      department: session.department,
-      semester: session.semester,
-      course: session.course,
-      courseCode: session.courseCode,
-      scheduleId: session.scheduleId,
+      ...recordScopeFor(session),
       markedById: user.id,
       markedAt: new Date(),
       userId: user.id,
@@ -443,9 +499,15 @@ attendanceRouter.post(
       ? await prisma.attendanceRecord.update({ where: { id: existing.id }, data })
       : await prisma.attendanceRecord.create({ data: { sessionId: id, ...data } });
 
+    const updated = await prisma.attendanceSession.findUnique({
+      where: { id },
+      include: { attendees: true },
+    });
+
     res.json({
       success: true,
       attendee: serializer.attendanceSession(session, [attendee]).attendees[0],
+      session: updated ? serializer.attendanceSession(updated, updated.attendees) : undefined,
     });
   }),
 );
@@ -479,11 +541,7 @@ attendanceRouter.post(
           verified: true,
           status,
           mode: 'MANUAL',
-          department: session.department,
-          semester: session.semester,
-          course: session.course,
-          courseCode: session.courseCode,
-          scheduleId: session.scheduleId,
+          ...recordScopeFor(session),
           markedById: user.id,
           markedAt: new Date(),
           userId,
@@ -497,11 +555,7 @@ attendanceRouter.post(
           verified: true,
           status,
           mode: 'MANUAL',
-          department: session.department,
-          semester: session.semester,
-          course: session.course,
-          courseCode: session.courseCode,
-          scheduleId: session.scheduleId,
+          ...recordScopeFor(session),
           markedById: user.id,
           markedAt: new Date(),
           userId,

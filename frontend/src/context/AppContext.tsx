@@ -52,7 +52,7 @@ interface AppState {
   startAttendanceSession: (payload: AttendanceStartPayload) => Promise<AttendanceSession>;
   stopAttendanceSession: (id?: string) => Promise<AttendanceSession | null>;
   refreshAttendanceSession: (id: string) => Promise<AttendanceSession>;
-  markAttendance: (sessionId: string, qrCode: string) => Promise<{ success: boolean; attendee?: AttendanceSession['attendees'][number]; message?: string }>;
+  markAttendance: (sessionId: string, qrCode: string) => Promise<{ success: boolean; attendee?: AttendanceSession['attendees'][number]; session?: AttendanceSession; message?: string }>;
   applyManualAttendance: (sessionId: string, records: Array<{ studentId: string; studentName?: string; present: boolean }>) => Promise<AttendanceSession>;
 
   schedule: ScheduleSlot[];
@@ -320,9 +320,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const markAttendance = useCallback(async (
     sessionId: string,
     qrCode: string,
-  ): Promise<{ success: boolean; attendee?: AttendanceSession['attendees'][number]; message?: string }> => {
+  ): Promise<{ success: boolean; attendee?: AttendanceSession['attendees'][number]; session?: AttendanceSession; message?: string }> => {
     const result = await api.attendance.mark(sessionId, { qrCode });
-    if (result.attendee) {
+    if (result.session) {
+      setAttendanceSession(result.session);
+    } else if (result.attendee) {
       setAttendanceSession((prev) => {
         if (!prev || prev.id !== sessionId) return prev;
         const attendees = prev.attendees.some((attendee) => attendee.id === result.attendee?.id)

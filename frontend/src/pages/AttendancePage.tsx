@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import {
@@ -56,14 +56,38 @@ const sessionDate = (session: AttendanceSession): string => {
 const classLabel = (slot: ScheduleSlot): string =>
   `${slot.day} ${slot.startTime}-${slot.endTime} | ${slot.course} Sem ${slot.semester}`;
 
+const academicYearFor = (dateValue: string): string => {
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return 'Academic year';
+  const year = date.getFullYear();
+  const start = date.getMonth() >= 6 ? year : year - 1;
+  return `${start}-${start + 1}`;
+};
+
 const presentCount = (session: AttendanceSession): number =>
   session.attendees.filter((record) => record.status === 'present').length;
 
-const absentCount = (session: AttendanceSession): number =>
-  session.attendees.filter((record) => record.status === 'absent').length;
-
 const attendancePercent = (present: number, total: number): number =>
   total > 0 ? Math.round((present / total) * 100) : 0;
+
+const subjectFor = (session: AttendanceSession, record?: AttendanceSession['attendees'][number]): string =>
+  record?.subjectName ?? session.courseName;
+
+const scopeFor = (session: AttendanceSession, record?: AttendanceSession['attendees'][number]): string => {
+  const academicYear = record?.academicYear ?? academicYearFor(session.date);
+  const year = record?.year ?? (session.semester ? Math.ceil(session.semester / 2) : undefined);
+  const department = record?.department ?? session.department;
+  const course = record?.course ?? session.course;
+  const semester = record?.semester ?? session.semester;
+  return `${academicYear} | Year ${year ?? '-'} | ${department} | ${course ?? 'Course'} Sem ${semester ?? '-'}`;
+};
+
+const recordTime = (record?: AttendanceSession['attendees'][number]): string => {
+  if (!record?.markedAt) return record?.timestamp ?? '-';
+  const date = new Date(record.markedAt);
+  if (Number.isNaN(date.getTime())) return record.timestamp;
+  return date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+};
 
 const recordMatchesUser = (
   record: AttendanceSession['attendees'][number],
@@ -555,42 +579,74 @@ const TeacherAttendanceView: React.FC = () => {
           <div className="attendance-panel__head">
             <div>
               <h3>My Attendance Sessions</h3>
-              <span>{sessions.length} database records</span>
+              <span>{sessions.length} database-backed academic records</span>
             </div>
             <button className="btn btn--outline" onClick={loadSessions} type="button"><RefreshCw size={16} /> Refresh</button>
           </div>
           {sessions.length === 0 ? (
             <EmptyState icon={<History size={32} />} title="No session records" body="QR and manual attendance sessions will appear after they are submitted." />
           ) : (
-            <div className="attendance-table-wrap">
-              <table className="attendance-table">
-                <thead>
-                  <tr>
-                    <th>Class</th>
-                    <th>Date</th>
-                    <th>Mode</th>
-                    <th>Present</th>
-                    <th>Absent</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sessions.map((session) => (
-                    <tr key={session.id}>
-                      <td>
-                        <strong>{session.courseName}</strong>
-                        <span>{session.courseCode} | {session.department} Sem {session.semester || '-'}</span>
-                      </td>
-                      <td>{sessionDate(session)}</td>
-                      <td><span className="attendance-pill">{session.mode.toUpperCase()}</span></td>
-                      <td>{presentCount(session)}</td>
-                      <td>{absentCount(session)}</td>
-                      <td><StatusBadge status={session.isActive ? 'pending' : 'present'} /></td>
+            <>
+              <div className="attendance-record-grid">
+                {sessions.slice(0, 6).map((session) => {
+                  const sample = session.attendees[0];
+                  const total = Math.max(session.attendees.length, roster.length || session.attendees.length);
+                  return (
+                    <article className="attendance-record-card" key={session.id}>
+                      <div className="attendance-record-card__top">
+                        <span className="attendance-pill">{session.mode.toUpperCase()}</span>
+                        <StatusBadge status={session.isActive ? 'pending' : 'present'} />
+                      </div>
+                      <h4>{subjectFor(session, sample)}</h4>
+                      <p>{scopeFor(session, sample)}</p>
+                      <div className="attendance-record-card__meta">
+                        <span><CalendarDays size={14} /> {sessionDate(session)}</span>
+                        <span><Users size={14} /> {presentCount(session)} / {total || 0} present</span>
+                        <span><BookOpen size={14} /> {session.courseCode}</span>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+              <div className="attendance-table-wrap">
+                <table className="attendance-table">
+                  <thead>
+                    <tr>
+                      <th>Subject</th>
+                      <th>Academic Scope</th>
+                      <th>Faculty / Room</th>
+                      <th>Mode</th>
+                      <th>Present</th>
+                      <th>Date</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {sessions.map((session) => {
+                      const sample = session.attendees[0];
+                      return (
+                        <tr key={session.id}>
+                          <td>
+                            <strong>{subjectFor(session, sample)}</strong>
+                            <span>{session.courseCode}</span>
+                          </td>
+                          <td>
+                            <strong>{sample?.department ?? session.department}</strong>
+                            <span>{scopeFor(session, sample)}</span>
+                          </td>
+                          <td>
+                            <strong>{sample?.facultyName ?? session.faculty}</strong>
+                            <span>{sample?.room ?? session.room ?? 'Room not set'}</span>
+                          </td>
+                          <td><span className="attendance-pill">{session.mode.toUpperCase()}</span></td>
+                          <td>{presentCount(session)} / {Math.max(session.attendees.length, presentCount(session))}</td>
+                          <td>{sessionDate(session)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       ) : null}
@@ -605,7 +661,9 @@ const StudentAttendanceView: React.FC = () => {
   const [sessions, setSessions] = useState<AttendanceSession[]>([]);
   const [scanning, setScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [justMarked, setJustMarked] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(qrSecondsLeft(attendanceSession));
+  const scanInFlightRef = useRef(false);
 
   const activeSession = attendanceSession?.isActive && attendanceSession.mode !== 'manual' ? attendanceSession : null;
 
@@ -633,33 +691,41 @@ const StudentAttendanceView: React.FC = () => {
     session.attendees.find((record) => recordMatchesUser(record, currentUser?.id, currentUser?.enrollmentNo)),
   [currentUser]);
 
-  const markedInActiveSession = activeSession ? userRecord(activeSession)?.status === 'present' : false;
+  const activeRecord = activeSession ? userRecord(activeSession) : undefined;
+  const markedInActiveSession = activeRecord?.status === 'present';
 
   const handleScan = async (qrValue: string) => {
-    if (!activeSession) return;
+    if (!activeSession || scanInFlightRef.current) return;
+    scanInFlightRef.current = true;
     setScanning(false);
     setScanMessage(null);
 
     try {
-      await markAttendance(activeSession.id, qrValue);
-      setScanMessage({ type: 'success', text: 'Attendance marked successfully.' });
+      const result = await markAttendance(activeSession.id, qrValue);
+      setJustMarked(true);
+      setScanMessage({ type: 'success', text: result.message ?? 'Attendance marked successfully.' });
       await loadSessions();
+      window.setTimeout(() => setJustMarked(false), 2400);
     } catch (scanError) {
       const message = scanError instanceof Error ? scanError.message : 'QR scan failed.';
       setScanMessage({
         type: message.toLowerCase().includes('already') ? 'success' : 'error',
         text: message.toLowerCase().includes('already') ? 'Attendance already marked for this class.' : message,
       });
+    } finally {
+      window.setTimeout(() => {
+        scanInFlightRef.current = false;
+      }, 900);
     }
   };
 
-  const completedSessions = sessions.filter((session) => !session.isActive);
-  const presentRecords = completedSessions.filter((session) => userRecord(session)?.status === 'present').length;
-  const absentRecords = completedSessions.filter((session) => {
+  const countedSessions = sessions.filter((session) => !session.isActive || userRecord(session));
+  const presentRecords = countedSessions.filter((session) => userRecord(session)?.status === 'present').length;
+  const absentRecords = countedSessions.filter((session) => {
     const record = userRecord(session);
-    return record?.status === 'absent' || !record;
+    return !session.isActive && (record?.status === 'absent' || !record);
   }).length;
-  const percent = attendancePercent(presentRecords, completedSessions.length);
+  const percent = attendancePercent(presentRecords, countedSessions.filter((session) => !session.isActive || userRecord(session)).length);
 
   return (
     <AttendanceShell
@@ -673,7 +739,7 @@ const StudentAttendanceView: React.FC = () => {
       }
     >
       <div className="attendance-metrics">
-        <MetricCard icon={<CalendarDays size={20} />} value={completedSessions.length} label="Classes counted" />
+        <MetricCard icon={<CalendarDays size={20} />} value={countedSessions.length} label="Classes counted" />
         <MetricCard icon={<UserCheck size={20} />} value={presentRecords} label="Present" tone="green" />
         <MetricCard icon={<UserX size={20} />} value={absentRecords} label="Absent" tone="red" />
         <MetricCard icon={<Download size={20} />} value={`${percent}%`} label="Attendance" tone="gold" />
@@ -691,11 +757,16 @@ const StudentAttendanceView: React.FC = () => {
                 </div>
               </div>
 
-              {markedInActiveSession ? (
-                <div className="attendance-confirmed">
-                  <CheckCircle size={42} />
+              {markedInActiveSession || justMarked ? (
+                <div className={`attendance-confirmed ${justMarked ? 'attendance-confirmed--pop' : ''}`}>
+                  <div className="attendance-confirmed__mark"><CheckCircle size={46} /></div>
                   <h3>Attendance marked</h3>
                   <p>You are recorded present for this session.</p>
+                  <div className="attendance-confirmed__scope">
+                    <strong>{subjectFor(activeSession, activeRecord)}</strong>
+                    <span>{scopeFor(activeSession, activeRecord)}</span>
+                    <small>{recordTime(activeRecord)} | {activeRecord?.room ?? activeSession.room ?? 'Room not set'}</small>
+                  </div>
                 </div>
               ) : scanning ? (
                 <div className="attendance-scanner">
@@ -704,6 +775,12 @@ const StudentAttendanceView: React.FC = () => {
                       const rawValue = result?.[0]?.rawValue;
                       if (rawValue) void handleScan(rawValue);
                     }}
+                    onError={(error) => {
+                      setScanMessage({ type: 'error', text: error instanceof Error ? error.message : 'Camera scan failed.' });
+                    }}
+                    paused={scanInFlightRef.current}
+                    scanDelay={350}
+                    sound
                     formats={['qr_code']}
                   />
                   <button className="btn btn--danger btn--full" onClick={() => setScanning(false)} type="button">Cancel Scan</button>
@@ -744,37 +821,68 @@ const StudentAttendanceView: React.FC = () => {
           {sessions.length === 0 ? (
             <EmptyState icon={<History size={32} />} title="No attendance history" body="Records will appear after classes are marked by QR or manual attendance." />
           ) : (
-            <div className="attendance-table-wrap">
-              <table className="attendance-table">
-                <thead>
-                  <tr>
-                    <th>Class</th>
-                    <th>Date</th>
-                    <th>Mode</th>
-                    <th>Time</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sessions.map((session) => {
-                    const record = userRecord(session);
-                    const status = session.isActive && !record ? 'pending' : record?.status ?? 'absent';
-                    return (
-                      <tr key={session.id}>
-                        <td>
-                          <strong>{session.courseName}</strong>
-                          <span>{session.courseCode} | {session.faculty}</span>
-                        </td>
-                        <td>{sessionDate(session)}</td>
-                        <td><span className="attendance-pill">{(record?.mode ?? session.mode).toUpperCase()}</span></td>
-                        <td>{record?.timestamp ?? session.startTime}</td>
-                        <td><StatusBadge status={status} /></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <>
+              <div className="attendance-record-grid attendance-record-grid--student">
+                {sessions.map((session) => {
+                  const record = userRecord(session);
+                  const status = session.isActive && !record ? 'pending' : record?.status ?? 'absent';
+                  return (
+                    <article className={`attendance-record-card attendance-record-card--${status}`} key={session.id}>
+                      <div className="attendance-record-card__top">
+                        <span className="attendance-pill">{(record?.mode ?? session.mode).toUpperCase()}</span>
+                        <StatusBadge status={status} />
+                      </div>
+                      <h4>{subjectFor(session, record)}</h4>
+                      <p>{scopeFor(session, record)}</p>
+                      <div className="attendance-record-card__meta">
+                        <span><CalendarDays size={14} /> {sessionDate(session)}</span>
+                        <span><Clock size={14} /> {recordTime(record) || session.startTime}</span>
+                        <span><BookOpen size={14} /> {record?.courseCode ?? session.courseCode}</span>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+              <div className="attendance-table-wrap">
+                <table className="attendance-table">
+                  <thead>
+                    <tr>
+                      <th>Subject</th>
+                      <th>Academic Scope</th>
+                      <th>Faculty / Room</th>
+                      <th>Mode</th>
+                      <th>Marked At</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sessions.map((session) => {
+                      const record = userRecord(session);
+                      const status = session.isActive && !record ? 'pending' : record?.status ?? 'absent';
+                      return (
+                        <tr key={session.id}>
+                          <td>
+                            <strong>{subjectFor(session, record)}</strong>
+                            <span>{record?.courseCode ?? session.courseCode}</span>
+                          </td>
+                          <td>
+                            <strong>{record?.department ?? session.department}</strong>
+                            <span>{scopeFor(session, record)}</span>
+                          </td>
+                          <td>
+                            <strong>{record?.facultyName ?? session.faculty}</strong>
+                            <span>{record?.room ?? session.room ?? 'Room not set'}</span>
+                          </td>
+                          <td><span className="attendance-pill">{(record?.mode ?? session.mode).toUpperCase()}</span></td>
+                          <td>{recordTime(record) || session.startTime}</td>
+                          <td><StatusBadge status={status} /></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       ) : null}

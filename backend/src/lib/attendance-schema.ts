@@ -28,9 +28,15 @@ const ensureAttendanceColumns = async (): Promise<void> => {
   await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT \'PRESENT\';');
   await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ADD COLUMN IF NOT EXISTS "mode" TEXT NOT NULL DEFAULT \'QR\';');
   await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ADD COLUMN IF NOT EXISTS "department" TEXT;');
+  await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ADD COLUMN IF NOT EXISTS "academicYear" TEXT;');
+  await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ADD COLUMN IF NOT EXISTS "year" INTEGER;');
   await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ADD COLUMN IF NOT EXISTS "semester" INTEGER;');
   await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ADD COLUMN IF NOT EXISTS "course" TEXT;');
+  await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ADD COLUMN IF NOT EXISTS "subjectName" TEXT;');
   await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ADD COLUMN IF NOT EXISTS "courseCode" TEXT;');
+  await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ADD COLUMN IF NOT EXISTS "facultyId" TEXT;');
+  await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ADD COLUMN IF NOT EXISTS "facultyName" TEXT;');
+  await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ADD COLUMN IF NOT EXISTS "room" TEXT;');
   await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ADD COLUMN IF NOT EXISTS "scheduleId" TEXT;');
   await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ADD COLUMN IF NOT EXISTS "markedById" TEXT;');
   await prisma.$executeRawUnsafe('ALTER TABLE "AttendanceRecord" ADD COLUMN IF NOT EXISTS "markedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;');
@@ -42,6 +48,7 @@ const ensureAttendanceColumns = async (): Promise<void> => {
   await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "AttendanceRecord_userId_idx" ON "AttendanceRecord"("userId");');
   await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "AttendanceRecord_scheduleId_idx" ON "AttendanceRecord"("scheduleId");');
   await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "AttendanceRecord_department_semester_idx" ON "AttendanceRecord"("department", "semester");');
+  await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "AttendanceRecord_academicYear_department_semester_idx" ON "AttendanceRecord"("academicYear", "department", "semester");');
 };
 
 export const ensureAttendanceSchema = async (): Promise<void> => {

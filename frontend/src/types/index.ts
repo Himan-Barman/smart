@@ -148,9 +148,15 @@ export interface AttendanceRecord {
   status: 'present' | 'absent';
   mode: 'qr' | 'manual';
   department?: string;
+  academicYear?: string;
+  year?: number;
   semester?: number;
   course?: string;
+  subjectName?: string;
   courseCode?: string;
+  facultyId?: string;
+  facultyName?: string;
+  room?: string;
   scheduleId?: string;
   markedById?: string;
   markedAt: string;

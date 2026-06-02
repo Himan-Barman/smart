@@ -1948,6 +1948,27 @@
   text-align: center;
 }
 
+.attendance-confirmed--pop {
+  animation: attendance-pop 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes attendance-pop {
+  0% { opacity: 0; transform: scale(0.94) translateY(8px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.attendance-confirmed__mark {
+  width: 76px;
+  height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(26,157,92,0.1);
+  color: #1a7f4a;
+  box-shadow: 0 0 0 10px rgba(26,157,92,0.05);
+}
+
 .attendance-confirmed h3 {
   color: var(--text-primary);
   font-size: 22px;
@@ -1958,6 +1979,109 @@
   color: var(--text-muted);
   font-size: 13px;
   font-weight: 700;
+}
+
+.attendance-confirmed__scope {
+  width: min(100%, 460px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 14px;
+  border: 1px solid rgba(26,157,92,0.14);
+  border-radius: 14px;
+  background: rgba(26,157,92,0.06);
+}
+
+.attendance-confirmed__scope strong {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.attendance-confirmed__scope span,
+.attendance-confirmed__scope small {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.attendance-record-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 12px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--glass-border);
+  background: rgba(247,248,250,0.5);
+}
+
+.attendance-record-grid--student {
+  border-bottom: 0;
+}
+
+.attendance-record-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 174px;
+  padding: 16px;
+  border: 1px solid var(--glass-border);
+  border-radius: 15px;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(36,39,49,0.05);
+}
+
+.attendance-record-card--present {
+  border-color: rgba(26,157,92,0.16);
+}
+
+.attendance-record-card--absent {
+  border-color: rgba(217,68,68,0.14);
+}
+
+.attendance-record-card--pending {
+  border-color: rgba(202,126,23,0.16);
+}
+
+.attendance-record-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.attendance-record-card h4 {
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 850;
+  line-height: 1.25;
+}
+
+.attendance-record-card p {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 750;
+}
+
+.attendance-record-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: auto;
+}
+
+.attendance-record-card__meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .attendance-scanner {
