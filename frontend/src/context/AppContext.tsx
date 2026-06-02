@@ -7,6 +7,7 @@ import type {
   Booking,
   Grievance,
   AttendanceSession,
+  AttendanceStartPayload,
   ScheduleSlot,
   Department,
   DepartmentPayload,
@@ -48,9 +49,11 @@ interface AppState {
   updateGrievance: (id: string, updates: Partial<Grievance>) => void;
 
   attendanceSession: AttendanceSession | null;
-  startAttendanceSession: (courseName: string, courseCode: string, faculty?: string, room?: string, scheduleId?: string) => void;
-  stopAttendanceSession: () => void;
-  markAttendance: (studentId: string, studentName: string, qrCode: string) => boolean;
+  startAttendanceSession: (payload: AttendanceStartPayload) => Promise<AttendanceSession>;
+  stopAttendanceSession: (id?: string) => Promise<AttendanceSession | null>;
+  refreshAttendanceSession: (id: string) => Promise<AttendanceSession>;
+  markAttendance: (sessionId: string, qrCode: string) => Promise<{ success: boolean; attendee?: AttendanceSession['attendees'][number]; message?: string }>;
+  applyManualAttendance: (sessionId: string, records: Array<{ studentId: string; studentName?: string; present: boolean }>) => Promise<AttendanceSession>;
 
   schedule: ScheduleSlot[];
   addScheduleSlot: (slot: Omit<ScheduleSlot, 'id'>) => void;
@@ -177,6 +180,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
   }, [refreshSchedule]);
 
+  useEffect(() => {
+    const refresh = () => {
+      void api.attendance.getActive().then((session) => {
+        setAttendanceSession(session);
+      }).catch(() => {});
+    };
+
+    const interval = window.setInterval(refresh, 5000);
+    window.addEventListener('focus', refresh);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refresh);
+    };
+  }, []);
+
   const addNotice = useCallback((notice: Omit<Notice, 'id' | 'date'>) => {
     const tempId = `tmp-${generateId()}`;
     const optimistic: Notice = {
@@ -277,45 +296,52 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   }, []);
 
-  const startAttendanceSession = useCallback((courseName: string, courseCode: string, faculty?: string, room?: string, scheduleId?: string) => {
-    void api.attendance
-      .start({ courseName, courseCode, faculty, room, scheduleId })
-      .then((session) => setAttendanceSession(session));
+  const startAttendanceSession = useCallback(async (payload: AttendanceStartPayload): Promise<AttendanceSession> => {
+    const session = await api.attendance.start(payload);
+    setAttendanceSession(session);
+    return session;
   }, []);
 
-  const stopAttendanceSession = useCallback(() => {
-    if (!attendanceSession) return;
+  const stopAttendanceSession = useCallback(async (id?: string): Promise<AttendanceSession | null> => {
+    const sessionId = id ?? attendanceSession?.id;
+    if (!sessionId) return null;
 
-    void api.attendance.stop(attendanceSession.id).then((session) => {
-      setAttendanceSession(session);
-    });
+    const session = await api.attendance.stop(sessionId);
+    setAttendanceSession(session.isActive ? session : null);
+    return session;
   }, [attendanceSession]);
 
-  const markAttendance = useCallback((studentId: string, studentName: string, qrCode: string): boolean => {
-    if (!attendanceSession || !attendanceSession.isActive) return false;
-    if (qrCode !== attendanceSession.currentQR) return false;
-    if (attendanceSession.attendees.some((attendee) => attendee.studentId === studentId)) return false;
+  const refreshAttendanceSession = useCallback(async (id: string): Promise<AttendanceSession> => {
+    const session = await api.attendance.refresh(id);
+    setAttendanceSession(session);
+    return session;
+  }, []);
 
-    const optimisticRecord = {
-      studentId,
-      studentName,
-      timestamp: new Date().toLocaleTimeString(),
-      qrCode,
-      verified: true,
-    };
+  const markAttendance = useCallback(async (
+    sessionId: string,
+    qrCode: string,
+  ): Promise<{ success: boolean; attendee?: AttendanceSession['attendees'][number]; message?: string }> => {
+    const result = await api.attendance.mark(sessionId, { qrCode });
+    if (result.attendee) {
+      setAttendanceSession((prev) => {
+        if (!prev || prev.id !== sessionId) return prev;
+        const attendees = prev.attendees.some((attendee) => attendee.id === result.attendee?.id)
+          ? prev.attendees.map((attendee) => (attendee.id === result.attendee?.id ? result.attendee! : attendee))
+          : [...prev.attendees, result.attendee!];
+        return { ...prev, attendees };
+      });
+    }
+    return result;
+  }, []);
 
-    setAttendanceSession((prev) => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        attendees: [...prev.attendees, optimisticRecord],
-      };
-    });
-
-    void api.attendance.mark(attendanceSession.id, { studentId, studentName, qrCode });
-
-    return true;
-  }, [attendanceSession]);
+  const applyManualAttendance = useCallback(async (
+    sessionId: string,
+    records: Array<{ studentId: string; studentName?: string; present: boolean }>,
+  ): Promise<AttendanceSession> => {
+    const session = await api.attendance.manual(sessionId, { records });
+    setAttendanceSession((prev) => (prev?.id === session.id ? session : prev));
+    return session;
+  }, []);
 
   const addScheduleSlot = useCallback((slot: Omit<ScheduleSlot, 'id'>) => {
     const tempId = `tmp-${generateId()}`;
@@ -426,7 +452,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         attendanceSession,
         startAttendanceSession,
         stopAttendanceSession,
+        refreshAttendanceSession,
         markAttendance,
+        applyManualAttendance,
         schedule,
         addScheduleSlot,
         updateScheduleSlot,

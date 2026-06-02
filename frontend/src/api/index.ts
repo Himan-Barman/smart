@@ -1,5 +1,7 @@
 import type {
   AttendanceSession,
+  AttendanceRosterStudent,
+  AttendanceStartPayload,
   Booking,
   Department,
   DepartmentPayload,
@@ -337,7 +339,16 @@ export const api = {
     getActive() {
       return request<AttendanceSession | null>('/attendance/session/active');
     },
-    start(payload: { courseName: string; courseCode: string; faculty?: string; room?: string; scheduleId?: string }) {
+    listSessions() {
+      return request<AttendanceSession[]>('/attendance/sessions');
+    },
+    getRoster(params: { scheduleId?: string; sessionId?: string }) {
+      const query = new URLSearchParams();
+      if (params.scheduleId) query.set('scheduleId', params.scheduleId);
+      if (params.sessionId) query.set('sessionId', params.sessionId);
+      return request<AttendanceRosterStudent[]>(`/attendance/roster?${query.toString()}`);
+    },
+    start(payload: AttendanceStartPayload) {
       return request<AttendanceSession>('/attendance/session/start', { method: 'POST', body: payload });
     },
     stop(id: string) {
@@ -346,8 +357,14 @@ export const api = {
     refresh(id: string) {
       return request<AttendanceSession>(`/attendance/session/${id}/refresh`, { method: 'POST' });
     },
-    mark(id: string, payload: { studentId: string; studentName: string; qrCode: string }) {
+    mark(id: string, payload: { qrCode: string }) {
       return request<{ success: boolean; attendee?: AttendanceSession['attendees'][number]; message?: string }>(`/attendance/session/${id}/mark`, {
+        method: 'POST',
+        body: payload,
+      });
+    },
+    manual(id: string, payload: { records: Array<{ studentId: string; studentName?: string; present: boolean }> }) {
+      return request<AttendanceSession>(`/attendance/session/${id}/manual`, {
         method: 'POST',
         body: payload,
       });

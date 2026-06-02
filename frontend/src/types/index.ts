@@ -118,23 +118,67 @@ export interface AttendanceSession {
   courseName: string;
   courseCode: string;
   faculty: string;
+  facultyId?: string;
+  department: string;
+  semester?: number;
+  course?: string;
+  section?: string;
+  mode: 'qr' | 'manual' | 'hybrid';
   date: string;
   startTime: string;
   duration: number;
   currentQR: string;
+  qrExpiresAt?: string;
   qrHistory: string[];
   attendees: AttendanceRecord[];
   isActive: boolean;
   scheduleId?: string;
   room?: string;
+  endedAt?: string;
 }
 
 export interface AttendanceRecord {
+  id: string;
+  sessionId: string;
   studentId: string;
   studentName: string;
   timestamp: string;
-  qrCode: string;
+  qrCode?: string;
   verified: boolean;
+  status: 'present' | 'absent';
+  mode: 'qr' | 'manual';
+  department?: string;
+  semester?: number;
+  course?: string;
+  courseCode?: string;
+  scheduleId?: string;
+  markedById?: string;
+  markedAt: string;
+}
+
+export interface AttendanceRosterStudent {
+  id: string;
+  name: string;
+  email: string;
+  department: string;
+  enrollmentNo?: string | null;
+  semester?: number | null;
+  course?: string | null;
+  hasAccount: boolean;
+}
+
+export interface AttendanceStartPayload {
+  scheduleId?: string;
+  mode?: 'qr' | 'manual' | 'hybrid';
+  courseName?: string;
+  courseCode?: string;
+  faculty?: string;
+  facultyId?: string;
+  room?: string;
+  department?: string;
+  semester?: number;
+  course?: string;
+  section?: string;
 }
 
 // ===== SCHEDULE / ROUTINE =====

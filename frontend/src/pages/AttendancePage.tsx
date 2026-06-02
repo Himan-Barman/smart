@@ -1,337 +1,591 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useApp } from '../context/AppContext';
-import { useAuth } from '../context/AuthContext';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Scanner } from '@yudiel/react-qr-scanner';
-import type { ScheduleSlot, DayOfWeek } from '../types';
 import {
-  Play, Square, Users, Clock, CheckCircle,
-  QrCode, BookOpen, CalendarDays, Search, Building2, ChevronRight, X, List, ToggleRight
+  AlertCircle,
+  BookOpen,
+  CalendarDays,
+  CheckCircle,
+  Clock,
+  Download,
+  History,
+  ListChecks,
+  Play,
+  QrCode,
+  RefreshCw,
+  ScanLine,
+  Search,
+  ShieldCheck,
+  Square,
+  UserCheck,
+  UserX,
+  Users,
 } from 'lucide-react';
+import { api } from '../api';
+import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
+import type { AttendanceRosterStudent, AttendanceSession, DayOfWeek, ScheduleSlot } from '../types';
 
-const QR_REFRESH_INTERVAL = 5000;
 const DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-// --- Mock Data ---
-const mockStudents = [
-  { id: 'CS2024001', name: 'Rahul Sharma', sem: 4, dept: 'Computer Science', totalAttended: 45, totalClasses: 50 },
-  { id: 'CS2024002', name: 'Priya Patel', sem: 4, dept: 'Computer Science', totalAttended: 48, totalClasses: 50 },
-  { id: 'EE2024010', name: 'Amit Kumar', sem: 2, dept: 'Electrical Engineering', totalAttended: 30, totalClasses: 40 },
-  { id: 'ME2024015', name: 'Sneha Gupta', sem: 6, dept: 'Mechanical Engineering', totalAttended: 55, totalClasses: 60 },
-];
+const normalize = (value?: string | null): string => (value ?? '').trim().toLowerCase();
 
-const mockPastRecords = [
-  { date: '2024-04-25', course: 'Data Structures', status: 'Present', type: 'QR' },
-  { date: '2024-04-24', course: 'Algorithms', status: 'Present', type: 'Manual' },
-  { date: '2024-04-23', course: 'Operating Systems', status: 'Absent', type: '-' },
-  { date: '2024-04-22', course: 'Data Structures', status: 'Present', type: 'QR' },
-];
+const todayName = (): DayOfWeek | null => {
+  const index = new Date().getDay();
+  return index >= 1 && index <= 6 ? DAYS[index - 1] : null;
+};
 
-// ==========================================
-// ADMIN ATTENDANCE VIEW
-// ==========================================
+const timeToMinutes = (time: string): number => {
+  const [hours = '0', minutes = '0'] = time.split(':');
+  return Number(hours) * 60 + Number(minutes);
+};
+
+const sortSlots = (slots: ScheduleSlot[]): ScheduleSlot[] =>
+  [...slots].sort((a, b) => {
+    const dayDiff = DAYS.indexOf(a.day) - DAYS.indexOf(b.day);
+    if (dayDiff !== 0) return dayDiff;
+    return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
+  });
+
+const sessionDate = (session: AttendanceSession): string => {
+  const parsed = new Date(session.date);
+  if (Number.isNaN(parsed.getTime())) return session.date;
+  return parsed.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+const classLabel = (slot: ScheduleSlot): string =>
+  `${slot.day} ${slot.startTime}-${slot.endTime} | ${slot.course} Sem ${slot.semester}`;
+
+const presentCount = (session: AttendanceSession): number =>
+  session.attendees.filter((record) => record.status === 'present').length;
+
+const absentCount = (session: AttendanceSession): number =>
+  session.attendees.filter((record) => record.status === 'absent').length;
+
+const attendancePercent = (present: number, total: number): number =>
+  total > 0 ? Math.round((present / total) * 100) : 0;
+
+const recordMatchesUser = (
+  record: AttendanceSession['attendees'][number],
+  userId?: string,
+  enrollmentNo?: string,
+): boolean => {
+  const keys = [userId, enrollmentNo].map(normalize).filter(Boolean);
+  return keys.includes(normalize(record.studentId));
+};
+
+const qrSecondsLeft = (session: AttendanceSession | null): number => {
+  if (!session?.qrExpiresAt) return 0;
+  return Math.max(0, Math.ceil((new Date(session.qrExpiresAt).getTime() - Date.now()) / 1000));
+};
+
+const StatusBadge: React.FC<{ status: 'present' | 'absent' | 'pending' }> = ({ status }) => (
+  <span className={`attendance-status attendance-status--${status}`}>
+    {status === 'present' ? <CheckCircle size={13} /> : status === 'absent' ? <UserX size={13} /> : <Clock size={13} />}
+    {status}
+  </span>
+);
+
+const EmptyState: React.FC<{ icon: React.ReactNode; title: string; body: string }> = ({ icon, title, body }) => (
+  <div className="attendance-empty">
+    <div className="attendance-empty__icon">{icon}</div>
+    <h3>{title}</h3>
+    <p>{body}</p>
+  </div>
+);
+
+const MetricCard: React.FC<{ icon: React.ReactNode; value: string | number; label: string; tone?: string }> = ({
+  icon,
+  value,
+  label,
+  tone = 'blue',
+}) => (
+  <div className="attendance-metric">
+    <div className={`attendance-metric__icon attendance-metric__icon--${tone}`}>{icon}</div>
+    <div>
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </div>
+  </div>
+);
+
+const AttendanceShell: React.FC<{
+  title: string;
+  subtitle: string;
+  children: React.ReactNode;
+  actions?: React.ReactNode;
+}> = ({ title, subtitle, children, actions }) => (
+  <div className="page attendance-page">
+    <div className="attendance-hero">
+      <div>
+        <span className="attendance-kicker">
+          <ShieldCheck size={14} />
+          University attendance
+        </span>
+        <h2>{title}</h2>
+        <p>{subtitle}</p>
+      </div>
+      {actions ? <div className="attendance-hero__actions">{actions}</div> : null}
+    </div>
+    {children}
+  </div>
+);
+
 const AdminAttendanceView: React.FC = () => {
   const { departments } = useApp();
-  const [viewState, setViewState] = useState<'departments' | 'semesters' | 'records'>('departments');
-  const [selectedDept, setSelectedDept] = useState<any>(null);
-  const [selectedSem, setSelectedSem] = useState<number | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [sessions, setSessions] = useState<AttendanceSession[]>([]);
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  const filteredStudents = useMemo(() => {
-    if (!searchQuery) return [];
-    return mockStudents.filter(s => 
-      s.id.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      s.name.toLowerCase().includes(searchQuery.toLowerCase())
+  const loadSessions = useCallback(async () => {
+    setLoading(true);
+    try {
+      setSessions(await api.attendance.listSessions());
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadSessions();
+  }, [loadSessions]);
+
+  const filteredSessions = useMemo(() => {
+    const key = normalize(query);
+    if (!key) return sessions;
+    return sessions.filter((session) =>
+      [session.courseName, session.courseCode, session.department, session.course, session.faculty, session.room]
+        .some((value) => normalize(value).includes(key)) ||
+      session.attendees.some((record) => [record.studentId, record.studentName].some((value) => normalize(value).includes(key))),
     );
-  }, [searchQuery]);
+  }, [query, sessions]);
 
-  const handleDeptClick = (dept: any) => {
-    setSelectedDept(dept);
-    setViewState('semesters');
-  };
-
-  const handleSemClick = (sem: number) => {
-    setSelectedSem(sem);
-    setViewState('records');
-  };
-
-  const getStudentsForSem = () => {
-    return mockStudents.filter(s => s.dept === selectedDept?.name && s.sem === selectedSem);
-  };
+  const totalRecords = sessions.reduce((sum, session) => sum + session.attendees.length, 0);
+  const totalPresent = sessions.reduce((sum, session) => sum + presentCount(session), 0);
 
   return (
-    <div className="page" style={{ maxWidth: '1000px', margin: '0 auto' }}>
-      <div className="page__header" style={{ marginBottom: '24px' }}>
-        <div>
-          <h2 className="page__title">Institutional Attendance</h2>
-          <p className="page__subtitle">Monitor attendance records across all departments.</p>
-        </div>
+    <AttendanceShell
+      title="Institutional Attendance"
+      subtitle="Audit live sessions, manual records, and department attendance from one database-backed view."
+      actions={
+        <button className="btn btn--outline" onClick={loadSessions} type="button">
+          <RefreshCw size={16} />
+          Refresh
+        </button>
+      }
+    >
+      <div className="attendance-metrics">
+        <MetricCard icon={<CalendarDays size={20} />} value={sessions.length} label="Sessions" />
+        <MetricCard icon={<Users size={20} />} value={totalRecords} label="Student records" tone="purple" />
+        <MetricCard icon={<UserCheck size={20} />} value={totalPresent} label="Present marks" tone="green" />
+        <MetricCard icon={<BookOpen size={20} />} value={departments.length} label="Departments" tone="gold" />
       </div>
 
-      {/* Global Search */}
-      <div className="admin-search" style={{ marginBottom: '24px', position: 'relative' }}>
-        <div style={{ display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid var(--glass-border)', borderRadius: '12px', padding: '12px 16px', boxShadow: 'var(--shadow-card)' }}>
-          <Search size={20} color="var(--text-muted)" style={{ marginRight: '12px' }} />
-          <input 
-            type="text" 
-            placeholder="Search any student by ID or Name..." 
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            style={{ border: 'none', outline: 'none', flex: 1, fontSize: '15px', color: 'var(--text-primary)' }}
-          />
-          {searchQuery && <X size={16} color="var(--text-muted)" style={{ cursor: 'pointer' }} onClick={() => setSearchQuery('')} />}
-        </div>
-        
-        {searchQuery && (
-          <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, width: '100%', background: '#fff', borderRadius: '12px', boxShadow: '0 12px 32px rgba(0,0,0,0.15)', zIndex: 10, overflow: 'hidden', border: '1px solid var(--glass-border)' }}>
-            {filteredStudents.length > 0 ? filteredStudents.map((s, i) => (
-              <div key={i} style={{ padding: '16px 20px', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <h4 style={{ margin: '0 0 4px', fontSize: '15px', color: 'var(--text-primary)' }}>{s.name}</h4>
-                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{s.id} • {s.dept} • Sem {s.sem}</span>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '16px', fontWeight: '700', color: (s.totalAttended/s.totalClasses) > 0.75 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
-                    {Math.round((s.totalAttended/s.totalClasses) * 100)}%
-                  </div>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Attendance</span>
-                </div>
-              </div>
-            )) : <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>No student found.</div>}
+      <div className="attendance-panel">
+        <div className="attendance-panel__head">
+          <div>
+            <h3>Attendance Ledger</h3>
+            <span>{filteredSessions.length} sessions visible</span>
           </div>
-        )}
-      </div>
-
-      {viewState === 'departments' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
-          {departments.map(dept => (
-            <div key={dept.id} onClick={() => handleDeptClick(dept)} style={{ background: '#fff', borderRadius: '16px', padding: '24px', border: '1px solid var(--glass-border)', cursor: 'pointer', transition: '0.2s', boxShadow: 'var(--shadow-card)' }} className="hover-lift">
-              <Building2 size={32} color="var(--accent-blue)" style={{ marginBottom: '16px' }} />
-              <h3 style={{ fontSize: '18px', margin: '0 0 8px', color: 'var(--text-primary)' }}>{dept.name}</h3>
-              <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>HOD: {dept.hod}</p>
-            </div>
-          ))}
+          <label className="attendance-search">
+            <Search size={17} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search student, class, department..." />
+          </label>
         </div>
-      )}
 
-      {viewState === 'semesters' && (
-        <div>
-          <button className="btn btn--ghost" onClick={() => setViewState('departments')} style={{ marginBottom: '20px' }}>← Back to Departments</button>
-          <h3 style={{ marginBottom: '24px', fontSize: '20px' }}>{selectedDept?.name} - Semesters</h3>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            {[ { year: '1st Year', sems: [1,2] }, { year: '2nd Year', sems: [3,4] }, { year: '3rd Year', sems: [5,6] }, { year: '4th Year', sems: [7,8] } ].map(yr => (
-              <div key={yr.year} style={{ background: '#fff', borderRadius: '16px', padding: '24px', border: '1px solid var(--glass-border)', boxShadow: 'var(--shadow-card)' }}>
-                <h4 style={{ margin: '0 0 16px', color: 'var(--text-secondary)', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>{yr.year}</h4>
-                <div style={{ display: 'flex', gap: '16px' }}>
-                  {yr.sems.map(sem => (
-                    <div key={sem} onClick={() => handleSemClick(sem)} style={{ flex: 1, padding: '20px', background: 'var(--surface-2)', borderRadius: '12px', border: '1px solid var(--glass-border)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} className="hover-lift">
-                      <span style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>Semester {sem}</span>
-                      <ChevronRight size={18} color="var(--text-muted)" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {viewState === 'records' && (
-        <div>
-          <button className="btn btn--ghost" onClick={() => setViewState('semesters')} style={{ marginBottom: '20px' }}>← Back to Semesters</button>
-          <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', border: '1px solid var(--glass-border)', boxShadow: 'var(--shadow-card)' }}>
-            <h3 style={{ marginBottom: '20px', fontSize: '18px' }}>Attendance Records - Sem {selectedSem}</h3>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        {loading ? (
+          <EmptyState icon={<RefreshCw size={32} />} title="Loading attendance" body="Reading attendance sessions from the database." />
+        ) : filteredSessions.length === 0 ? (
+          <EmptyState icon={<History size={32} />} title="No records found" body="Attendance sessions will appear after teachers start QR or manual attendance." />
+        ) : (
+          <div className="attendance-table-wrap">
+            <table className="attendance-table">
               <thead>
-                <tr style={{ background: 'var(--surface-2)', textAlign: 'left' }}>
-                  <th style={{ padding: '12px 16px', borderRadius: '8px 0 0 8px', fontSize: '13px', color: 'var(--text-secondary)' }}>Student ID</th>
-                  <th style={{ padding: '12px 16px', fontSize: '13px', color: 'var(--text-secondary)' }}>Name</th>
-                  <th style={{ padding: '12px 16px', fontSize: '13px', color: 'var(--text-secondary)' }}>Classes Attended</th>
-                  <th style={{ padding: '12px 16px', borderRadius: '0 8px 8px 0', fontSize: '13px', color: 'var(--text-secondary)' }}>Percentage</th>
+                <tr>
+                  <th>Class</th>
+                  <th>Scope</th>
+                  <th>Faculty</th>
+                  <th>Mode</th>
+                  <th>Present</th>
+                  <th>Date</th>
                 </tr>
               </thead>
               <tbody>
-                {getStudentsForSem().map(s => {
-                  const perc = Math.round((s.totalAttended/s.totalClasses)*100);
-                  return (
-                    <tr key={s.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
-                      <td style={{ padding: '16px', fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)' }}>{s.id}</td>
-                      <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-secondary)' }}>{s.name}</td>
-                      <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-secondary)' }}>{s.totalAttended} / {s.totalClasses}</td>
-                      <td style={{ padding: '16px', fontSize: '14px', fontWeight: '700', color: perc > 75 ? 'var(--accent-green)' : 'var(--accent-red)' }}>{perc}%</td>
-                    </tr>
-                  )
-                })}
+                {filteredSessions.map((session) => (
+                  <tr key={session.id}>
+                    <td>
+                      <strong>{session.courseName}</strong>
+                      <span>{session.courseCode} | {session.room || 'Room not set'}</span>
+                    </td>
+                    <td>
+                      <strong>{session.department}</strong>
+                      <span>{session.course || 'Course'} Sem {session.semester || '-'}</span>
+                    </td>
+                    <td>{session.faculty}</td>
+                    <td><span className="attendance-pill">{session.mode.toUpperCase()}</span></td>
+                    <td>{presentCount(session)} / {Math.max(session.attendees.length, presentCount(session))}</td>
+                    <td>{sessionDate(session)}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
-            {getStudentsForSem().length === 0 && <p style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>No students found for this semester.</p>}
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </AttendanceShell>
   );
 };
 
-
-// ==========================================
-// TEACHER ATTENDANCE VIEW
-// ==========================================
 const TeacherAttendanceView: React.FC = () => {
-  const { attendanceSession, startAttendanceSession, stopAttendanceSession, schedule } = useApp();
-  const { currentUser } = useAuth();
-  const [mode, setMode] = useState<'live' | 'manual' | 'records'>('live');
-  const [manualClass, setManualClass] = useState<any>(null);
-  
-  const [qrValue, setQrValue] = useState('');
-  const [timeLeft, setTimeLeft] = useState(5);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const {
+    attendanceSession,
+    startAttendanceSession,
+    stopAttendanceSession,
+    refreshAttendanceSession,
+    applyManualAttendance,
+    schedule,
+  } = useApp();
+  const [tab, setTab] = useState<'qr' | 'manual' | 'records'>('qr');
+  const [selectedSlotId, setSelectedSlotId] = useState('');
+  const [roster, setRoster] = useState<AttendanceRosterStudent[]>([]);
+  const [manualMarks, setManualMarks] = useState<Record<string, boolean>>({});
+  const [sessions, setSessions] = useState<AttendanceSession[]>([]);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(qrSecondsLeft(attendanceSession));
 
-  const todayClasses = useMemo(() => {
-    const dayIdx = new Date().getDay();
-    const today = dayIdx >= 1 && dayIdx <= 6 ? DAYS[dayIdx - 1] : null;
-    if (!today) return [];
-    return schedule.filter(s => s.day === today && s.facultyId === currentUser?.id);
-  }, [schedule, currentUser]);
+  const teacherSlots = useMemo(() => sortSlots(schedule), [schedule]);
+  const today = todayName();
+  const todaySlots = useMemo(
+    () => teacherSlots.filter((slot) => !today || slot.day === today),
+    [teacherSlots, today],
+  );
+  const selectedSlot = teacherSlots.find((slot) => slot.id === selectedSlotId) ?? todaySlots[0] ?? teacherSlots[0] ?? null;
+  const activeSession = attendanceSession?.isActive ? attendanceSession : null;
 
-  const generateNewQR = useCallback(() => {
-    const newQR = `SMARTCAMPUS-ATT-${Date.now()}-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
-    setQrValue(newQR);
-    setTimeLeft(5);
-    if (attendanceSession?.isActive) attendanceSession.currentQR = newQR;
-  }, [attendanceSession]);
+  const loadSessions = useCallback(async () => {
+    setSessions(await api.attendance.listSessions());
+  }, []);
+
+  const loadRoster = useCallback(async (slotId: string) => {
+    if (!slotId) {
+      setRoster([]);
+      setManualMarks({});
+      return;
+    }
+
+    const nextRoster = await api.attendance.getRoster({ scheduleId: slotId });
+    setRoster(nextRoster);
+    setManualMarks((prev) => {
+      const next: Record<string, boolean> = {};
+      nextRoster.forEach((student) => {
+        next[student.id] = prev[student.id] ?? false;
+      });
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
-    if (attendanceSession?.isActive && mode === 'live') {
-      generateNewQR();
-      timerRef.current = setInterval(() => {
-        generateNewQR();
-      }, QR_REFRESH_INTERVAL);
-      const countdown = setInterval(() => setTimeLeft(p => (p <= 1 ? 5 : p - 1)), 1000);
-      return () => {
-        if (timerRef.current) clearInterval(timerRef.current);
-        clearInterval(countdown);
-      };
+    if (!selectedSlotId && (todaySlots[0] || teacherSlots[0])) {
+      setSelectedSlotId((todaySlots[0] ?? teacherSlots[0]).id);
     }
-  }, [attendanceSession?.isActive, mode, generateNewQR]);
+  }, [selectedSlotId, teacherSlots, todaySlots]);
 
-  const handleStartQR = (slot: ScheduleSlot) => {
-    startAttendanceSession(slot.subject, slot.courseCode, slot.faculty, slot.room, slot.id);
+  useEffect(() => {
+    void loadSessions().catch(() => {});
+  }, [loadSessions]);
+
+  useEffect(() => {
+    if (selectedSlotId) {
+      void loadRoster(selectedSlotId).catch((loadError) => {
+        setRoster([]);
+        setError(loadError instanceof Error ? loadError.message : 'Unable to load roster');
+      });
+    }
+  }, [selectedSlotId, loadRoster]);
+
+  useEffect(() => {
+    setSecondsLeft(qrSecondsLeft(activeSession));
+    const countdown = window.setInterval(() => {
+      setSecondsLeft(qrSecondsLeft(activeSession));
+    }, 500);
+    return () => window.clearInterval(countdown);
+  }, [activeSession]);
+
+  useEffect(() => {
+    if (!activeSession?.isActive || activeSession.mode === 'manual') return undefined;
+
+    const interval = window.setInterval(() => {
+      void refreshAttendanceSession(activeSession.id).catch((refreshError) => {
+        setError(refreshError instanceof Error ? refreshError.message : 'Unable to refresh QR code');
+      });
+    }, 5000);
+
+    return () => window.clearInterval(interval);
+  }, [activeSession?.id, activeSession?.isActive, activeSession?.mode, refreshAttendanceSession]);
+
+  const startQrSession = async (slot: ScheduleSlot) => {
+    setBusy(true);
+    setError('');
+    try {
+      await startAttendanceSession({ scheduleId: slot.id, mode: 'qr' });
+      await loadSessions();
+      setTab('qr');
+    } catch (startError) {
+      setError(startError instanceof Error ? startError.message : 'Unable to start attendance session');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const handleManualToggle = (studentId: string, present: boolean) => {
-    // Mock toggle
-    alert(`Marked ${studentId} as ${present ? 'Present' : 'Absent'} manually.`);
+  const endSession = async () => {
+    if (!activeSession) return;
+    setBusy(true);
+    setError('');
+    try {
+      await stopAttendanceSession(activeSession.id);
+      await loadSessions();
+    } catch (stopError) {
+      setError(stopError instanceof Error ? stopError.message : 'Unable to stop attendance session');
+    } finally {
+      setBusy(false);
+    }
   };
+
+  const submitManualAttendance = async () => {
+    if (!selectedSlot || roster.length === 0) return;
+    setBusy(true);
+    setError('');
+    try {
+      const session = await startAttendanceSession({ scheduleId: selectedSlot.id, mode: 'manual' });
+      await applyManualAttendance(
+        session.id,
+        roster.map((student) => ({
+          studentId: student.id,
+          studentName: student.name,
+          present: manualMarks[student.id] ?? false,
+        })),
+      );
+      await stopAttendanceSession(session.id);
+      await loadSessions();
+      setTab('records');
+    } catch (manualError) {
+      setError(manualError instanceof Error ? manualError.message : 'Unable to submit manual attendance');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const setAllManual = (present: boolean) => {
+    const next: Record<string, boolean> = {};
+    roster.forEach((student) => {
+      next[student.id] = present;
+    });
+    setManualMarks(next);
+  };
+
+  const activeRosterSize = roster.length || activeSession?.attendees.length || 0;
+  const teacherPresent = activeSession ? presentCount(activeSession) : 0;
+  const sessionPercent = attendancePercent(teacherPresent, activeRosterSize);
 
   return (
-    <div className="page" style={{ maxWidth: '1000px', margin: '0 auto' }}>
-      <div className="page__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <div>
-          <h2 className="page__title">Class Attendance</h2>
-          <p className="page__subtitle">Take live QR attendance, mark manually, or view records.</p>
+    <AttendanceShell
+      title="Class Attendance"
+      subtitle="Start rotating QR sessions, submit manual attendance, and review records by scheduled class."
+      actions={
+        <div className="attendance-tabs" role="tablist">
+          <button className={tab === 'qr' ? 'is-active' : ''} onClick={() => setTab('qr')} type="button"><QrCode size={15} /> QR</button>
+          <button className={tab === 'manual' ? 'is-active' : ''} onClick={() => setTab('manual')} type="button"><ListChecks size={15} /> Manual</button>
+          <button className={tab === 'records' ? 'is-active' : ''} onClick={() => setTab('records')} type="button"><History size={15} /> Records</button>
         </div>
-        <div style={{ display: 'flex', background: 'var(--surface-2)', padding: '4px', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
-          <button className={`btn ${mode === 'live' ? 'btn--primary' : 'btn--ghost'}`} onClick={() => setMode('live')} style={{ padding: '8px 16px' }}><QrCode size={16}/> Live QR</button>
-          <button className={`btn ${mode === 'manual' ? 'btn--primary' : 'btn--ghost'}`} onClick={() => setMode('manual')} style={{ padding: '8px 16px' }}><ToggleRight size={16}/> Manual</button>
-          <button className={`btn ${mode === 'records' ? 'btn--primary' : 'btn--ghost'}`} onClick={() => setMode('records')} style={{ padding: '8px 16px' }}><List size={16}/> Records</button>
-        </div>
+      }
+    >
+      {error ? <div className="attendance-alert"><AlertCircle size={16} /> {error}</div> : null}
+
+      <div className="attendance-metrics">
+        <MetricCard icon={<CalendarDays size={20} />} value={teacherSlots.length} label="Assigned classes" />
+        <MetricCard icon={<Users size={20} />} value={activeRosterSize} label="Class roster" tone="purple" />
+        <MetricCard icon={<UserCheck size={20} />} value={teacherPresent} label="Present now" tone="green" />
+        <MetricCard icon={<Download size={20} />} value={`${sessionPercent}%`} label="Current rate" tone="gold" />
       </div>
 
-      {mode === 'live' && (
-        <div>
-          {!attendanceSession?.isActive ? (
-            <div className="att-classes" style={{ background: '#fff', borderRadius: '16px', padding: '24px', border: '1px solid var(--glass-border)', boxShadow: 'var(--shadow-card)' }}>
-              <h3 style={{ margin: '0 0 20px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '18px' }}><CalendarDays size={20} className="text-accent-blue" /> Today's Classes</h3>
-              {todayClasses.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}><BookOpen size={48} style={{ opacity: 0.3, marginBottom: '16px' }} /><p>No classes scheduled today.</p></div>
+      {tab === 'qr' ? (
+        activeSession ? (
+          <div className="attendance-live-grid">
+            <div className="attendance-panel attendance-qr-panel">
+              <div className="attendance-live-head">
+                <span className="attendance-live-dot" />
+                <div>
+                  <h3>{activeSession.courseName}</h3>
+                  <p>{activeSession.courseCode} | {activeSession.department} Sem {activeSession.semester || '-'} | {activeSession.room || 'Room not set'}</p>
+                </div>
+              </div>
+
+              <div className="attendance-qr-frame">
+                <QRCodeSVG value={activeSession.currentQR} size={236} level="H" />
+              </div>
+              <div className="attendance-qr-meta">
+                <span>Refreshes every 5 seconds</span>
+                <strong>{secondsLeft}s</strong>
+              </div>
+              <button className="btn btn--danger btn--lg" onClick={endSession} disabled={busy} type="button">
+                <Square size={18} />
+                End Session
+              </button>
+            </div>
+
+            <div className="attendance-panel">
+              <div className="attendance-panel__head">
+                <div>
+                  <h3>Live Present List</h3>
+                  <span>{presentCount(activeSession)} students marked</span>
+                </div>
+                <span className="attendance-pill">{activeSession.mode.toUpperCase()}</span>
+              </div>
+              {activeSession.attendees.filter((record) => record.status === 'present').length === 0 ? (
+                <EmptyState icon={<Users size={30} />} title="No scans yet" body="Students will appear here immediately after scanning the current QR." />
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
-                  {todayClasses.map(slot => (
-                    <div key={slot.id} style={{ background: 'var(--surface-2)', borderRadius: '12px', padding: '20px', border: '1px solid var(--glass-border)' }}>
-                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={12}/> {slot.startTime} - {slot.endTime}</div>
-                      <h4 style={{ margin: '0 0 4px', fontSize: '16px', color: 'var(--text-primary)' }}>{slot.subject}</h4>
-                      <p style={{ margin: '0 0 16px', fontSize: '13px', color: 'var(--text-secondary)' }}>{slot.courseCode} • {slot.room}</p>
-                      <button className="btn btn--primary btn--full" onClick={() => handleStartQR(slot)}><Play size={16}/> Start Session</button>
+                <div className="attendance-roster">
+                  {activeSession.attendees.filter((record) => record.status === 'present').map((record) => (
+                    <div className="attendance-roster__row" key={record.id}>
+                      <div className="attendance-avatar">{record.studentName.slice(0, 1).toUpperCase()}</div>
+                      <div>
+                        <strong>{record.studentName}</strong>
+                        <span>{record.studentId} | {record.timestamp}</span>
+                      </div>
+                      <CheckCircle size={18} className="attendance-icon-green" />
                     </div>
                   ))}
                 </div>
               )}
             </div>
-          ) : (
-            <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
-              <div style={{ flex: 1, background: '#fff', borderRadius: '16px', padding: '32px', textAlign: 'center', border: '1px solid var(--glass-border)', boxShadow: 'var(--shadow-card)' }}>
-                <div style={{ display: 'inline-block', padding: '6px 16px', background: 'rgba(229,83,61,0.1)', color: 'var(--accent-red)', borderRadius: '20px', fontSize: '12px', fontWeight: '700', marginBottom: '24px', animation: 'pulse 2s infinite' }}>● LIVE SESSION</div>
-                <h3 style={{ margin: '0 0 4px', fontSize: '24px' }}>{attendanceSession.courseName}</h3>
-                <p style={{ margin: '0 0 32px', color: 'var(--text-secondary)' }}>{attendanceSession.room}</p>
-                <div style={{ background: '#fff', padding: '24px', borderRadius: '16px', display: 'inline-block', boxShadow: '0 8px 32px rgba(0,0,0,0.1)' }}>
-                  <QRCodeSVG value={qrValue} size={240} level="H" fgColor="#0C0C0C" />
-                </div>
-                <p style={{ marginTop: '24px', fontSize: '18px', fontWeight: '600', color: 'var(--accent-blue)' }}>Refreshes in {timeLeft}s</p>
-                <button className="btn btn--danger btn--lg" onClick={stopAttendanceSession} style={{ marginTop: '32px' }}><Square size={18}/> End Session</button>
-              </div>
-              <div style={{ width: '350px', background: '#fff', borderRadius: '16px', padding: '24px', border: '1px solid var(--glass-border)', boxShadow: 'var(--shadow-card)', maxHeight: '600px', overflowY: 'auto' }}>
-                <h3 style={{ margin: '0 0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Users size={18}/> Present</span>
-                  <span style={{ background: 'var(--surface-3)', padding: '4px 12px', borderRadius: '20px', fontSize: '14px' }}>{attendanceSession.attendees.length}</span>
-                </h3>
-                {attendanceSession.attendees.length === 0 ? (
-                  <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px 0' }}>No scans yet...</p>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {attendanceSession.attendees.map((att, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'var(--surface-2)', borderRadius: '8px' }}>
-                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--accent-green)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: '700' }}>{att.studentName.charAt(0)}</div>
-                        <div style={{ flex: 1 }}>
-                          <h4 style={{ margin: 0, fontSize: '14px' }}>{att.studentName}</h4>
-                          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{att.studentId}</span>
-                        </div>
-                        <CheckCircle size={16} color="var(--accent-green)" />
-                      </div>
-                    ))}
-                  </div>
-                )}
+          </div>
+        ) : (
+          <div className="attendance-panel">
+            <div className="attendance-panel__head">
+              <div>
+                <h3>Start QR Attendance</h3>
+                <span>Select a schedule slot. The server will rotate the QR token every 5 seconds.</span>
               </div>
             </div>
+            {teacherSlots.length === 0 ? (
+              <EmptyState icon={<CalendarDays size={32} />} title="No scheduled classes" body="Admin must add schedule slots before attendance can be started." />
+            ) : (
+              <div className="attendance-class-grid">
+                {(todaySlots.length > 0 ? todaySlots : teacherSlots).map((slot) => (
+                  <button className="attendance-class-card" key={slot.id} onClick={() => startQrSession(slot)} disabled={busy} type="button">
+                    <span><Clock size={14} /> {slot.day} {slot.startTime}-{slot.endTime}</span>
+                    <strong>{slot.subject}</strong>
+                    <small>{slot.courseCode} | {slot.course} Sem {slot.semester} | {slot.room}</small>
+                    <em><Play size={14} /> Start QR</em>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      ) : null}
+
+      {tab === 'manual' ? (
+        <div className="attendance-panel">
+          <div className="attendance-panel__head attendance-panel__head--stack">
+            <div>
+              <h3>Manual Attendance</h3>
+              <span>Roster is loaded by selected department and semester from the registered users database.</span>
+            </div>
+            <select value={selectedSlot?.id ?? ''} onChange={(event) => setSelectedSlotId(event.target.value)} className="attendance-select">
+              {teacherSlots.map((slot) => (
+                <option key={slot.id} value={slot.id}>{slot.subject} - {classLabel(slot)}</option>
+              ))}
+            </select>
+          </div>
+
+          {!selectedSlot ? (
+            <EmptyState icon={<CalendarDays size={32} />} title="No class selected" body="Select a scheduled class to load the department roster." />
+          ) : roster.length === 0 ? (
+            <EmptyState icon={<Users size={32} />} title="No students in roster" body="Add students to this department and semester from admin user management." />
+          ) : (
+            <>
+              <div className="attendance-manual-toolbar">
+                <div>
+                  <strong>{selectedSlot.subject}</strong>
+                  <span>{selectedSlot.department} | {selectedSlot.course} Sem {selectedSlot.semester}</span>
+                </div>
+                <div>
+                  <button className="btn btn--outline" onClick={() => setAllManual(true)} type="button">All Present</button>
+                  <button className="btn btn--outline" onClick={() => setAllManual(false)} type="button">All Absent</button>
+                </div>
+              </div>
+              <div className="attendance-roster attendance-roster--manual">
+                {roster.map((student) => {
+                  const present = manualMarks[student.id] ?? false;
+                  return (
+                    <div className="attendance-roster__row" key={student.id}>
+                      <div className="attendance-avatar">{student.name.slice(0, 1).toUpperCase()}</div>
+                      <div>
+                        <strong>{student.name}</strong>
+                        <span>{student.id} | {student.email}</span>
+                      </div>
+                      <button
+                        className={`attendance-toggle ${present ? 'attendance-toggle--present' : 'attendance-toggle--absent'}`}
+                        onClick={() => setManualMarks((prev) => ({ ...prev, [student.id]: !present }))}
+                        type="button"
+                      >
+                        {present ? <UserCheck size={16} /> : <UserX size={16} />}
+                        {present ? 'Present' : 'Absent'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="attendance-panel__foot">
+                <span>{Object.values(manualMarks).filter(Boolean).length} present, {roster.length - Object.values(manualMarks).filter(Boolean).length} absent</span>
+                <button className="btn btn--primary" onClick={submitManualAttendance} disabled={busy} type="button">
+                  <ListChecks size={17} />
+                  Submit Manual Attendance
+                </button>
+              </div>
+            </>
           )}
         </div>
-      )}
+      ) : null}
 
-      {mode === 'manual' && (
-        <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', border: '1px solid var(--glass-border)', boxShadow: 'var(--shadow-card)' }}>
-          <h3 style={{ margin: '0 0 20px' }}>Manual Attendance</h3>
-          {!manualClass ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
-              {todayClasses.map(slot => (
-                <div key={slot.id} onClick={() => setManualClass(slot)} style={{ background: 'var(--surface-2)', borderRadius: '12px', padding: '20px', border: '1px solid var(--glass-border)', cursor: 'pointer' }} className="hover-lift">
-                  <h4 style={{ margin: '0 0 4px', fontSize: '16px', color: 'var(--text-primary)' }}>{slot.subject}</h4>
-                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)' }}>{slot.courseCode} • {slot.startTime}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
+      {tab === 'records' ? (
+        <div className="attendance-panel">
+          <div className="attendance-panel__head">
             <div>
-              <button className="btn btn--ghost" onClick={() => setManualClass(null)} style={{ marginBottom: '20px' }}>← Back to Classes</button>
-              <h4 style={{ marginBottom: '20px', fontSize: '18px' }}>{manualClass.subject} - Student List</h4>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <h3>My Attendance Sessions</h3>
+              <span>{sessions.length} database records</span>
+            </div>
+            <button className="btn btn--outline" onClick={loadSessions} type="button"><RefreshCw size={16} /> Refresh</button>
+          </div>
+          {sessions.length === 0 ? (
+            <EmptyState icon={<History size={32} />} title="No session records" body="QR and manual attendance sessions will appear after they are submitted." />
+          ) : (
+            <div className="attendance-table-wrap">
+              <table className="attendance-table">
                 <thead>
-                  <tr style={{ background: 'var(--surface-2)', textAlign: 'left' }}>
-                    <th style={{ padding: '12px 16px', borderRadius: '8px 0 0 8px' }}>Student</th>
-                    <th style={{ padding: '12px 16px' }}>ID</th>
-                    <th style={{ padding: '12px 16px', borderRadius: '0 8px 8px 0', textAlign: 'right' }}>Action</th>
+                  <tr>
+                    <th>Class</th>
+                    <th>Date</th>
+                    <th>Mode</th>
+                    <th>Present</th>
+                    <th>Absent</th>
+                    <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {mockStudents.map(s => (
-                    <tr key={s.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
-                      <td style={{ padding: '16px', fontWeight: '600' }}>{s.name}</td>
-                      <td style={{ padding: '16px', color: 'var(--text-secondary)' }}>{s.id}</td>
-                      <td style={{ padding: '16px', textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: '8px' }}>
-                          <button className="btn btn--outline" style={{ borderColor: 'var(--accent-green)', color: 'var(--accent-green)', padding: '6px 12px' }} onClick={() => handleManualToggle(s.id, true)}>Present</button>
-                          <button className="btn btn--outline" style={{ borderColor: 'var(--accent-red)', color: 'var(--accent-red)', padding: '6px 12px' }} onClick={() => handleManualToggle(s.id, false)}>Absent</button>
-                        </div>
+                  {sessions.map((session) => (
+                    <tr key={session.id}>
+                      <td>
+                        <strong>{session.courseName}</strong>
+                        <span>{session.courseCode} | {session.department} Sem {session.semester || '-'}</span>
                       </td>
+                      <td>{sessionDate(session)}</td>
+                      <td><span className="attendance-pill">{session.mode.toUpperCase()}</span></td>
+                      <td>{presentCount(session)}</td>
+                      <td>{absentCount(session)}</td>
+                      <td><StatusBadge status={session.isActive ? 'pending' : 'present'} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -339,159 +593,198 @@ const TeacherAttendanceView: React.FC = () => {
             </div>
           )}
         </div>
-      )}
-
-      {mode === 'records' && (
-        <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', border: '1px solid var(--glass-border)', boxShadow: 'var(--shadow-card)' }}>
-          <h3 style={{ margin: '0 0 20px' }}>Department Student Records</h3>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: 'var(--surface-2)', textAlign: 'left' }}>
-                <th style={{ padding: '12px 16px', borderRadius: '8px 0 0 8px' }}>Student ID</th>
-                <th style={{ padding: '12px 16px' }}>Name</th>
-                <th style={{ padding: '12px 16px' }}>Sem</th>
-                <th style={{ padding: '12px 16px', borderRadius: '0 8px 8px 0' }}>Overall %</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mockStudents.map(s => (
-                <tr key={s.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
-                  <td style={{ padding: '16px' }}>{s.id}</td>
-                  <td style={{ padding: '16px', fontWeight: '600' }}>{s.name}</td>
-                  <td style={{ padding: '16px' }}>{s.sem}</td>
-                  <td style={{ padding: '16px', fontWeight: '700', color: (s.totalAttended/s.totalClasses) > 0.75 ? 'var(--accent-green)' : 'var(--accent-red)' }}>{Math.round((s.totalAttended/s.totalClasses)*100)}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
+      ) : null}
+    </AttendanceShell>
   );
 };
 
-
-// ==========================================
-// STUDENT ATTENDANCE VIEW
-// ==========================================
 const StudentAttendanceView: React.FC = () => {
   const { attendanceSession, markAttendance } = useApp();
   const { currentUser } = useAuth();
-  const [mode, setMode] = useState<'live' | 'records'>('live');
-  const [scanResult, setScanResult] = useState<'success' | 'error' | null>(null);
-  const [isScanning, setIsScanning] = useState(false);
+  const [tab, setTab] = useState<'scan' | 'records'>('scan');
+  const [sessions, setSessions] = useState<AttendanceSession[]>([]);
+  const [scanning, setScanning] = useState(false);
+  const [scanMessage, setScanMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState(qrSecondsLeft(attendanceSession));
 
-  const handleScan = (qrValue: string) => {
-    setIsScanning(false);
-    if (!attendanceSession?.isActive) {
-      setScanResult('error'); setTimeout(() => setScanResult(null), 3000);
-      return;
+  const activeSession = attendanceSession?.isActive && attendanceSession.mode !== 'manual' ? attendanceSession : null;
+
+  const loadSessions = useCallback(async () => {
+    setSessions(await api.attendance.listSessions());
+  }, []);
+
+  useEffect(() => {
+    void loadSessions().catch(() => {});
+    const interval = window.setInterval(() => {
+      void loadSessions().catch(() => {});
+    }, 10000);
+    return () => window.clearInterval(interval);
+  }, [loadSessions]);
+
+  useEffect(() => {
+    setSecondsLeft(qrSecondsLeft(activeSession));
+    const countdown = window.setInterval(() => {
+      setSecondsLeft(qrSecondsLeft(activeSession));
+    }, 500);
+    return () => window.clearInterval(countdown);
+  }, [activeSession]);
+
+  const userRecord = useCallback((session: AttendanceSession) =>
+    session.attendees.find((record) => recordMatchesUser(record, currentUser?.id, currentUser?.enrollmentNo)),
+  [currentUser]);
+
+  const markedInActiveSession = activeSession ? userRecord(activeSession)?.status === 'present' : false;
+
+  const handleScan = async (qrValue: string) => {
+    if (!activeSession) return;
+    setScanning(false);
+    setScanMessage(null);
+
+    try {
+      await markAttendance(activeSession.id, qrValue);
+      setScanMessage({ type: 'success', text: 'Attendance marked successfully.' });
+      await loadSessions();
+    } catch (scanError) {
+      const message = scanError instanceof Error ? scanError.message : 'QR scan failed.';
+      setScanMessage({
+        type: message.toLowerCase().includes('already') ? 'success' : 'error',
+        text: message.toLowerCase().includes('already') ? 'Attendance already marked for this class.' : message,
+      });
     }
-    const success = markAttendance(currentUser!.enrollmentNo || currentUser!.id, currentUser!.name, qrValue);
-    setScanResult(success ? 'success' : 'error');
-    setTimeout(() => setScanResult(null), 3000);
   };
 
+  const completedSessions = sessions.filter((session) => !session.isActive);
+  const presentRecords = completedSessions.filter((session) => userRecord(session)?.status === 'present').length;
+  const absentRecords = completedSessions.filter((session) => {
+    const record = userRecord(session);
+    return record?.status === 'absent' || !record;
+  }).length;
+  const percent = attendancePercent(presentRecords, completedSessions.length);
+
   return (
-    <div className="page" style={{ maxWidth: '800px', margin: '0 auto' }}>
-      <div className="page__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <div>
-          <h2 className="page__title">My Attendance</h2>
-          <p className="page__subtitle">Mark your attendance or view your past records.</p>
+    <AttendanceShell
+      title="My Attendance"
+      subtitle="Scan the active class QR or review your department and semester attendance history."
+      actions={
+        <div className="attendance-tabs" role="tablist">
+          <button className={tab === 'scan' ? 'is-active' : ''} onClick={() => setTab('scan')} type="button"><ScanLine size={15} /> Scan</button>
+          <button className={tab === 'records' ? 'is-active' : ''} onClick={() => setTab('records')} type="button"><History size={15} /> Records</button>
         </div>
-        <div style={{ display: 'flex', background: 'var(--surface-2)', padding: '4px', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
-          <button className={`btn ${mode === 'live' ? 'btn--primary' : 'btn--ghost'}`} onClick={() => setMode('live')} style={{ padding: '8px 16px' }}><QrCode size={16}/> Scan QR</button>
-          <button className={`btn ${mode === 'records' ? 'btn--primary' : 'btn--ghost'}`} onClick={() => setMode('records')} style={{ padding: '8px 16px' }}><List size={16}/> Records</button>
-        </div>
+      }
+    >
+      <div className="attendance-metrics">
+        <MetricCard icon={<CalendarDays size={20} />} value={completedSessions.length} label="Classes counted" />
+        <MetricCard icon={<UserCheck size={20} />} value={presentRecords} label="Present" tone="green" />
+        <MetricCard icon={<UserX size={20} />} value={absentRecords} label="Absent" tone="red" />
+        <MetricCard icon={<Download size={20} />} value={`${percent}%`} label="Attendance" tone="gold" />
       </div>
 
-      {mode === 'live' && (
-        <div style={{ background: '#fff', borderRadius: '16px', padding: '40px 24px', textAlign: 'center', border: '1px solid var(--glass-border)', boxShadow: 'var(--shadow-card)' }}>
-          {attendanceSession?.isActive ? (
-            <div>
-              <div style={{ display: 'inline-block', padding: '6px 16px', background: 'rgba(59,108,245,0.1)', color: 'var(--accent-blue)', borderRadius: '20px', fontSize: '12px', fontWeight: '700', marginBottom: '24px' }}>● LIVE CLASS</div>
-              <h3 style={{ fontSize: '24px', margin: '0 0 8px' }}>{attendanceSession.courseName}</h3>
-              <p style={{ color: 'var(--text-secondary)', marginBottom: '32px' }}>{attendanceSession.faculty} • {attendanceSession.room}</p>
-              
-              {isScanning ? (
-                <div style={{ maxWidth: '400px', margin: '0 auto 32px', borderRadius: '24px', overflow: 'hidden', border: '1px solid var(--glass-border)', boxShadow: '0 12px 32px rgba(0,0,0,0.1)' }}>
-                  <Scanner 
-                    onScan={(result) => { if (result && result.length) handleScan(result[0].rawValue); }} 
+      {tab === 'scan' ? (
+        <div className="attendance-panel attendance-student-scan">
+          {activeSession ? (
+            <>
+              <div className="attendance-live-head">
+                <span className="attendance-live-dot" />
+                <div>
+                  <h3>{activeSession.courseName}</h3>
+                  <p>{activeSession.faculty} | {activeSession.room || 'Room not set'} | {activeSession.courseCode}</p>
+                </div>
+              </div>
+
+              {markedInActiveSession ? (
+                <div className="attendance-confirmed">
+                  <CheckCircle size={42} />
+                  <h3>Attendance marked</h3>
+                  <p>You are recorded present for this session.</p>
+                </div>
+              ) : scanning ? (
+                <div className="attendance-scanner">
+                  <Scanner
+                    onScan={(result) => {
+                      const rawValue = result?.[0]?.rawValue;
+                      if (rawValue) void handleScan(rawValue);
+                    }}
                     formats={['qr_code']}
                   />
-                  <div style={{ padding: '16px', background: 'var(--surface-2)' }}>
-                    <button className="btn btn--danger btn--full" onClick={() => setIsScanning(false)}>Cancel Scan</button>
-                  </div>
+                  <button className="btn btn--danger btn--full" onClick={() => setScanning(false)} type="button">Cancel Scan</button>
                 </div>
               ) : (
-                <>
-                  <div style={{ width: '200px', height: '200px', border: '3px dashed var(--accent-blue)', borderRadius: '24px', margin: '0 auto 32px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-1)' }}>
-                    <QrCode size={64} color="var(--accent-blue)" style={{ opacity: 0.5 }} />
-                  </div>
-                  
-                  <button className="btn btn--primary btn--lg" onClick={() => setIsScanning(true)} style={{ padding: '16px 48px', fontSize: '18px' }}><QrCode size={20}/> Scan Board QR</button>
-                </>
-              )}
-
-              {scanResult && (
-                <div style={{ marginTop: '24px', padding: '16px', borderRadius: '12px', background: scanResult === 'success' ? 'rgba(60, 203, 127, 0.1)' : 'rgba(229, 83, 61, 0.1)', color: scanResult === 'success' ? 'var(--accent-green)' : 'var(--accent-red)', fontWeight: '600' }}>
-                  {scanResult === 'success' ? '✅ Attendance marked successfully!' : '❌ Failed to scan or QR expired.'}
+                <div className="attendance-scan-box">
+                  <div className="attendance-scan-box__target"><QrCode size={62} /></div>
+                  <button className="btn btn--primary btn--lg" onClick={() => setScanning(true)} type="button">
+                    <ScanLine size={20} />
+                    Scan Board QR
+                  </button>
+                  <span>Current QR expires in {secondsLeft}s</span>
                 </div>
               )}
-            </div>
+
+              {scanMessage ? (
+                <div className={`attendance-alert attendance-alert--${scanMessage.type}`}>
+                  {scanMessage.type === 'success' ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+                  {scanMessage.text}
+                </div>
+              ) : null}
+            </>
           ) : (
+            <EmptyState icon={<QrCode size={34} />} title="No active QR session" body="When your teacher starts attendance for your department and semester, it will appear here automatically." />
+          )}
+        </div>
+      ) : null}
+
+      {tab === 'records' ? (
+        <div className="attendance-panel">
+          <div className="attendance-panel__head">
             <div>
-              <QrCode size={64} style={{ color: 'var(--text-muted)', opacity: 0.3, marginBottom: '20px' }} />
-              <h3 style={{ fontSize: '20px', color: 'var(--text-primary)', marginBottom: '8px' }}>No Active Session</h3>
-              <p style={{ color: 'var(--text-secondary)' }}>Please wait for your professor to start the attendance session on the board.</p>
+              <h3>Attendance Records</h3>
+              <span>{currentUser?.department} | Sem {currentUser?.semester || '-'}</span>
+            </div>
+            <button className="btn btn--outline" onClick={loadSessions} type="button"><RefreshCw size={16} /> Refresh</button>
+          </div>
+          {sessions.length === 0 ? (
+            <EmptyState icon={<History size={32} />} title="No attendance history" body="Records will appear after classes are marked by QR or manual attendance." />
+          ) : (
+            <div className="attendance-table-wrap">
+              <table className="attendance-table">
+                <thead>
+                  <tr>
+                    <th>Class</th>
+                    <th>Date</th>
+                    <th>Mode</th>
+                    <th>Time</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sessions.map((session) => {
+                    const record = userRecord(session);
+                    const status = session.isActive && !record ? 'pending' : record?.status ?? 'absent';
+                    return (
+                      <tr key={session.id}>
+                        <td>
+                          <strong>{session.courseName}</strong>
+                          <span>{session.courseCode} | {session.faculty}</span>
+                        </td>
+                        <td>{sessionDate(session)}</td>
+                        <td><span className="attendance-pill">{(record?.mode ?? session.mode).toUpperCase()}</span></td>
+                        <td>{record?.timestamp ?? session.startTime}</td>
+                        <td><StatusBadge status={status} /></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
-      )}
-
-      {mode === 'records' && (
-        <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', border: '1px solid var(--glass-border)', boxShadow: 'var(--shadow-card)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-            <h3 style={{ margin: 0 }}>Past Records</h3>
-            <div style={{ textAlign: 'right' }}>
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Overall Attendance</span>
-              <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--accent-green)' }}>85%</div>
-            </div>
-          </div>
-          
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: 'var(--surface-2)', textAlign: 'left' }}>
-                <th style={{ padding: '12px 16px', borderRadius: '8px 0 0 8px' }}>Date</th>
-                <th style={{ padding: '12px 16px' }}>Course</th>
-                <th style={{ padding: '12px 16px' }}>Type</th>
-                <th style={{ padding: '12px 16px', borderRadius: '0 8px 8px 0', textAlign: 'right' }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mockPastRecords.map((r, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid var(--glass-border)' }}>
-                  <td style={{ padding: '16px', color: 'var(--text-secondary)' }}>{r.date}</td>
-                  <td style={{ padding: '16px', fontWeight: '600' }}>{r.course}</td>
-                  <td style={{ padding: '16px', color: 'var(--text-muted)', fontSize: '13px' }}>{r.type}</td>
-                  <td style={{ padding: '16px', textAlign: 'right', fontWeight: '700', color: r.status === 'Present' ? 'var(--accent-green)' : 'var(--accent-red)' }}>{r.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
+      ) : null}
+    </AttendanceShell>
   );
 };
 
-
-// ==========================================
-// MAIN WRAPPER
-// ==========================================
 const AttendancePage: React.FC = () => {
   const { currentUser } = useAuth();
-  
+
   if (!currentUser) return null;
   if (currentUser.role === 'admin') return <AdminAttendanceView />;
   if (currentUser.role === 'teacher') return <TeacherAttendanceView />;

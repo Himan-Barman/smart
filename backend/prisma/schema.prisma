@@ -198,20 +198,33 @@ model AttendanceSession {
   courseName  String
   courseCode  String
   faculty     String
+  facultyId   String?
+  department  String   @default("")
+  semester    Int?
+  course      String?
+  section     String?
+  mode        String   @default("QR")
   date        DateTime
   startTime   String
   duration    Int      @default(0)
   currentQR   String
   qrHistory   String
+  qrExpiresAt DateTime?
   isActive    Boolean  @default(true)
   scheduleId  String?
   room        String?
+  endedAt     DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   startedById String?
 
   startedBy User? @relation("SessionStarter", fields: [startedById], references: [id], onDelete: SetNull)
   attendees AttendanceRecord[]
+
+  @@index([scheduleId])
+  @@index([facultyId])
+  @@index([startedById])
+  @@index([department, semester])
 }
 
 model AttendanceRecord {
@@ -220,14 +233,26 @@ model AttendanceRecord {
   studentId   String
   studentName String
   timestamp   String
-  qrCode      String
+  qrCode      String?
   verified    Boolean @default(true)
+  status      String  @default("PRESENT")
+  mode        String  @default("QR")
+  department  String?
+  semester    Int?
+  course      String?
+  courseCode  String?
+  scheduleId  String?
+  markedById  String?
+  markedAt    DateTime @default(now())
   userId      String?
 
   session AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   user    User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@unique([sessionId, studentId])
+  @@index([userId])
+  @@index([scheduleId])
+  @@index([department, semester])
 }
 
 model ScheduleSlot {

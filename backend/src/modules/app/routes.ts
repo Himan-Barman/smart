@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { asyncHandler } from '../../lib/async-handler.js';
+import { findActiveAttendanceSessionForUser } from '../../lib/attendance-access.js';
+import { ensureAttendanceSchema } from '../../lib/attendance-schema.js';
 import { withDbReadRetry } from '../../lib/db-read-retry.js';
 import { getManagedUserData, type ManagedUserData } from '../../lib/managed-users.js';
 import { prisma } from '../../lib/prisma.js';
@@ -109,11 +111,10 @@ appDataRouter.get(
     );
     const activeSession = await safeBootstrapQuery(
       'active attendance session',
-      () => prisma.attendanceSession.findFirst({
-        where: { isActive: true },
-        orderBy: { createdAt: 'desc' },
-        include: { attendees: true },
-      }),
+      async () => {
+        await ensureAttendanceSchema();
+        return findActiveAttendanceSessionForUser(userId, role);
+      },
       null,
     );
     const schedule = await safeBootstrapQuery(
