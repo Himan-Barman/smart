@@ -93,16 +93,24 @@ export interface Room {
   available: boolean;
 }
 
+export type RoomPayload = Omit<Room, 'id'>;
+
 export interface Booking {
   id: string;
   roomId: string;
   roomName: string;
   bookedBy: string;
+  bookedById?: string;
   date: string;
   startTime: string;
   endTime: string;
   purpose: string;
   status: 'confirmed' | 'pending' | 'cancelled';
+  targetRole?: 'all' | 'admin' | 'teacher' | 'student';
+  targetDepartment?: string;
+  targetSemester?: number;
+  targetCourse?: string;
+  targetLabel?: string;
 }
 
 export interface Grievance {

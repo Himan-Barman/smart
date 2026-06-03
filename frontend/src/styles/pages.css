@@ -113,6 +113,68 @@
 .notice-target-box__head strong { font-size: 13px; font-weight: 800; }
 .notice-target-box__head span { margin-top: 2px; color: var(--text-muted); font-size: 12px; font-weight: 600; }
 
+/* Room booking management */
+.room-booking-page .room-toolbar { align-items: center; }
+.room-toolbar--sub { margin-top: -10px; margin-bottom: 18px; }
+.room-filter-select {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+.room-card__actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: auto;
+}
+.room-card__viewonly {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.booking-card__audience {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  margin-top: 8px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(108,93,211,0.08);
+  color: #6c5dd3;
+  font-size: 11px;
+  font-weight: 800;
+}
+.room-modal { max-width: 620px; }
+.room-amenity-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.room-availability-toggle {
+  align-self: end;
+  min-height: 42px;
+  margin-bottom: 0;
+  padding: 0 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
 /* ===== FEEDBACK ===== */
 .feedback-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
 .feedback-stat-card {

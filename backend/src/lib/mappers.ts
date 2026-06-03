@@ -143,6 +143,7 @@ export const mapper = {
   internshipTypeToClient: (value: string): 'remote' | 'onsite' | 'hybrid' => mapValue(value, internshipTypeMap, 'remote') as 'remote' | 'onsite' | 'hybrid',
 
   roomTypeToClient: (value: string): 'classroom' | 'lab' | 'seminar_hall' | 'auditorium' => mapValue(value, roomTypeMap, 'classroom') as 'classroom' | 'lab' | 'seminar_hall' | 'auditorium',
+  roomTypeFromClient: (value: string): string => reverseMapValue(value, roomTypeMap, 'CLASSROOM'),
   bookingStatusToClient: (value: string): 'confirmed' | 'pending' | 'cancelled' => mapValue(value, bookingStatusMap, 'pending') as 'confirmed' | 'pending' | 'cancelled',
 
   grievanceTypeToClient: (value: string): 'academic' | 'infrastructure' | 'administrative' | 'harassment' | 'other' => mapValue(value, grievanceTypeMap, 'other') as 'academic' | 'infrastructure' | 'administrative' | 'harassment' | 'other',

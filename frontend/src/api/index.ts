@@ -10,6 +10,7 @@ import type {
   Notice,
   RegisteredPerson,
   Room,
+  RoomPayload,
   ScheduleSlot,
   Skill,
   User,
@@ -326,6 +327,15 @@ export const api = {
     },
     cancel(id: string) {
       return request<Booking>(`/bookings/${id}/cancel`, { method: 'PATCH' });
+    },
+  },
+
+  rooms: {
+    create(payload: RoomPayload) {
+      return request<Room>('/rooms', { method: 'POST', body: payload });
+    },
+    update(id: string, payload: Partial<RoomPayload>) {
+      return request<Room>(`/rooms/${id}`, { method: 'PATCH', body: payload });
     },
   },
 

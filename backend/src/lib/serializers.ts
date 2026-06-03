@@ -18,6 +18,7 @@ import type {
   Skill,
   User,
 } from '@prisma/client';
+import { bookingTargetLabel, bookingTargetRoleToClient } from './booking-targeting.js';
 import { mapper } from './mappers.js';
 import { noticeTargetLabel, noticeTargetRoleToClient } from './notice-targeting.js';
 
@@ -176,11 +177,17 @@ export const serializer = {
       roomId: booking.roomId,
       roomName: booking.roomName,
       bookedBy: booking.bookedByName,
+      bookedById: booking.bookedById ?? undefined,
       date: mapper.date(booking.date),
       startTime: booking.startTime,
       endTime: booking.endTime,
       purpose: booking.purpose,
       status: mapper.bookingStatusToClient(booking.status),
+      targetRole: bookingTargetRoleToClient(booking.targetRole),
+      targetDepartment: booking.targetDepartment ?? undefined,
+      targetSemester: booking.targetSemester ?? undefined,
+      targetCourse: booking.targetCourse ?? undefined,
+      targetLabel: bookingTargetLabel(booking),
     };
   },
 

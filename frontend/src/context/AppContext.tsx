@@ -4,6 +4,7 @@ import type {
   Feedback,
   Skill,
   Room,
+  RoomPayload,
   Booking,
   Grievance,
   AttendanceSession,
@@ -41,8 +42,10 @@ interface AppState {
   removeSkill: (id: string) => void;
 
   rooms: Room[];
+  addRoom: (room: RoomPayload) => Promise<Room>;
+  updateRoom: (id: string, room: Partial<RoomPayload>) => Promise<Room>;
   bookings: Booking[];
-  addBooking: (booking: Omit<Booking, 'id' | 'status'>) => void;
+  addBooking: (booking: Omit<Booking, 'id' | 'status'>) => Promise<Booking>;
   cancelBooking: (id: string) => void;
 
   grievances: Grievance[];
@@ -384,7 +387,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     void api.skills.remove(id);
   }, []);
 
-  const addBooking = useCallback((booking: Omit<Booking, 'id' | 'status'>) => {
+  const addBooking = useCallback(async (booking: Omit<Booking, 'id' | 'status'>): Promise<Booking> => {
     const tempId = `tmp-${generateId()}`;
     const optimistic: Booking = {
       ...booking,
@@ -394,9 +397,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     setBookings((prev) => [optimistic, ...prev]);
 
-    void api.bookings.create(booking).then((created) => {
+    try {
+      const created = await api.bookings.create(booking);
       setBookings((prev) => replaceById(prev, tempId, created));
-    });
+      notifyNotificationsChanged();
+      return created;
+    } catch (error) {
+      setBookings((prev) => prev.filter((item) => item.id !== tempId));
+      throw error;
+    }
+  }, []);
+
+  const addRoom = useCallback(async (room: RoomPayload): Promise<Room> => {
+    const created = await api.rooms.create(room);
+    setRooms((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+    return created;
+  }, []);
+
+  const updateRoom = useCallback(async (id: string, room: Partial<RoomPayload>): Promise<Room> => {
+    const updated = await api.rooms.update(id, room);
+    setRooms((prev) => replaceById(prev, id, updated).sort((a, b) => a.name.localeCompare(b.name)));
+    return updated;
   }, []);
 
   const cancelBooking = useCallback((id: string) => {
@@ -582,6 +603,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addSkill,
         removeSkill,
         rooms,
+        addRoom,
+        updateRoom,
         bookings,
         addBooking,
         cancelBooking,

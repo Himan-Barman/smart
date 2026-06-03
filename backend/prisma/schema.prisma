@@ -174,11 +174,17 @@ model Booking {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   bookedById    String?
+  targetRole    String   @default("ALL")
+  targetDepartment String?
+  targetSemester   Int?
+  targetCourse     String?
 
   room     Room  @relation(fields: [roomId], references: [id], onDelete: Cascade)
   bookedBy User? @relation(fields: [bookedById], references: [id], onDelete: SetNull)
 
   @@index([roomId, date])
+  @@index([targetRole])
+  @@index([targetDepartment, targetSemester])
 }
 
 model Grievance {

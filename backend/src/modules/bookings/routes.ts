@@ -1,8 +1,17 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../../lib/async-handler.js';
+import {
+  bookingTargetLabel,
+  findBookingRecipientIds,
+  findVisibleBookingsForUser,
+  normalizeBookingAudience,
+} from '../../lib/booking-targeting.js';
+import { departmentsMatch } from '../../lib/department-matching.js';
 import { HttpError } from '../../lib/errors.js';
+import { createUserNotifications } from '../../lib/notifications.js';
 import { prisma } from '../../lib/prisma.js';
+import { ensureBookingSchema } from '../../lib/room-booking-schema.js';
 import { serializer } from '../../lib/serializers.js';
 import { requireAuth } from '../../middleware/auth.js';
 
@@ -17,10 +26,8 @@ const toMinutes = (time: string): number => {
 
 bookingRouter.get(
   '/',
-  asyncHandler(async (_req, res) => {
-    const bookings = await prisma.booking.findMany({
-      orderBy: [{ date: 'desc' }, { startTime: 'asc' }],
-    });
+  asyncHandler(async (req, res) => {
+    const bookings = await findVisibleBookingsForUser(req.auth!.userId);
 
     res.json(bookings.map((booking) => serializer.booking(booking)));
   }),
@@ -34,12 +41,20 @@ const createSchema = z.object({
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
   endTime: z.string().regex(/^\d{2}:\d{2}$/),
   purpose: z.string().min(1),
+  targetRole: z.enum(['all', 'admin', 'teacher', 'student']).default('all'),
+  targetDepartment: z.string().optional().nullable(),
+  targetSemester: z.coerce.number().int().positive().optional().nullable(),
+  targetCourse: z.string().optional().nullable(),
 });
+
+const bookingDescription = (roomName: string, date: string, startTime: string, endTime: string, purpose: string): string =>
+  `${roomName} booked on ${date} from ${startTime} to ${endTime}. ${purpose}`;
 
 bookingRouter.post(
   '/',
   asyncHandler(async (req, res) => {
     const payload = createSchema.parse(req.body);
+    await ensureBookingSchema();
 
     if (req.auth!.role === 'student') {
       throw new HttpError(403, 'Students can only view room bookings.');
@@ -53,6 +68,37 @@ bookingRouter.post(
     if (!room) {
       throw new HttpError(404, 'Room not found');
     }
+
+    if (!room.available) {
+      throw new HttpError(409, 'This room is currently marked unavailable.');
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.auth!.userId },
+      select: { id: true, name: true, role: true, department: true },
+    });
+
+    if (!user) throw new HttpError(401, 'User not found');
+
+    const departments = await prisma.department.findMany({ select: { name: true, code: true, course: true } });
+    const requestedAudience = normalizeBookingAudience(payload);
+    const isTeacher = req.auth!.role === 'teacher';
+
+    if (
+      isTeacher &&
+      requestedAudience.targetDepartment &&
+      !departmentsMatch(departments, requestedAudience.targetDepartment, user.department)
+    ) {
+      throw new HttpError(403, 'Teachers can book rooms only for their own department.');
+    }
+
+    const audience = isTeacher
+      ? {
+          ...requestedAudience,
+          targetRole: 'STUDENT' as const,
+          targetDepartment: requestedAudience.targetDepartment ?? user.department,
+        }
+      : requestedAudience;
 
     const date = new Date(`${payload.date}T00:00:00.000Z`);
 
@@ -80,16 +126,36 @@ bookingRouter.post(
     const booking = await prisma.booking.create({
       data: {
         roomId: payload.roomId,
-        roomName: payload.roomName,
-        bookedByName: payload.bookedBy,
+        roomName: room.name,
+        bookedByName: user.name || payload.bookedBy,
         date,
         startTime: payload.startTime,
         endTime: payload.endTime,
         purpose: payload.purpose,
-        status: 'PENDING',
+        status: 'CONFIRMED',
         bookedById: req.auth!.userId,
+        targetRole: audience.targetRole,
+        targetDepartment: audience.targetDepartment,
+        targetSemester: audience.targetSemester,
+        targetCourse: audience.targetCourse,
       },
     });
+
+    try {
+      const recipientIds = await findBookingRecipientIds(booking);
+      await createUserNotifications(
+        recipientIds,
+        `Room booked: ${booking.roomName}`,
+        bookingDescription(booking.roomName, payload.date, booking.startTime, booking.endTime, booking.purpose),
+        'INFO',
+      );
+    } catch (error) {
+      console.error('Room booking notification fanout failed', {
+        bookingId: booking.id,
+        target: bookingTargetLabel(booking),
+        bookedById: req.auth!.userId,
+      }, error);
+    }
 
     res.status(201).json(serializer.booking(booking));
   }),
@@ -99,10 +165,19 @@ bookingRouter.patch(
   '/:id/cancel',
   asyncHandler(async (req, res) => {
     const id = req.params.id;
+    await ensureBookingSchema();
 
     const booking = await prisma.booking.findUnique({ where: { id } });
     if (!booking) {
       throw new HttpError(404, 'Booking not found');
+    }
+
+    if (req.auth!.role === 'student') {
+      throw new HttpError(403, 'Students can only view room bookings.');
+    }
+
+    if (req.auth!.role !== 'admin' && booking.bookedById !== req.auth!.userId) {
+      throw new HttpError(403, 'You can cancel only bookings created by you.');
     }
 
     const updated = await prisma.booking.update({

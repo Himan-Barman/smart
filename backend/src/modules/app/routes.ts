@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { findActiveAttendanceSessionForUser } from '../../lib/attendance-access.js';
 import { ensureAttendanceSchema } from '../../lib/attendance-schema.js';
+import { findVisibleBookingsForUser } from '../../lib/booking-targeting.js';
 import { withDbReadRetry } from '../../lib/db-read-retry.js';
 import { getManagedUserData, type ManagedUserData } from '../../lib/managed-users.js';
 import { findVisibleNoticesForUser } from '../../lib/notice-targeting.js';
@@ -89,12 +90,12 @@ appDataRouter.get(
     );
     const rooms = await safeBootstrapQuery(
       'rooms',
-      () => prisma.room.findMany({ orderBy: { name: 'asc' } }),
+      () => (role === 'student' ? Promise.resolve([]) : prisma.room.findMany({ orderBy: { name: 'asc' } })),
       [],
     );
     const bookings = await safeBootstrapQuery(
       'bookings',
-      () => prisma.booking.findMany({ orderBy: [{ date: 'desc' }, { startTime: 'asc' }] }),
+      () => findVisibleBookingsForUser(userId),
       [],
     );
     const grievances = await safeBootstrapQuery(
