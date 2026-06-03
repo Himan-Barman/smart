@@ -1,24 +1,23 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
+  ArrowRight,
   Check,
-  CheckCircle,
   Eye,
   EyeOff,
   Lock,
-  ShieldCheck,
   X,
 } from 'lucide-react';
 import AuthSplitShell from '../components/AuthSplitShell';
 
 const RULES = [
-  { test: (password: string) => password.length >= 6, label: 'At least 6 characters' },
-  { test: (password: string) => /[A-Z]/.test(password), label: 'One uppercase letter' },
-  { test: (password: string) => /[0-9]/.test(password), label: 'One number' },
+  { test: (password: string) => password.length >= 6, label: '6+ characters' },
+  { test: (password: string) => /[A-Z]/.test(password), label: 'uppercase' },
+  { test: (password: string) => /[0-9]/.test(password), label: 'number' },
 ];
 
 const SetPasswordPage: React.FC = () => {
-  const { completeSignup, pendingSignup, setAuthStep } = useAuth();
+  const { completeSignup, setAuthStep } = useAuth();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -27,13 +26,14 @@ const SetPasswordPage: React.FC = () => {
 
   const allRulesPass = RULES.every((rule) => rule.test(password));
   const passwordsMatch = password.length > 0 && password === confirmPassword;
+  const showMatchState = confirmPassword.length > 0;
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
 
     if (!allRulesPass) {
-      setError('Password does not meet requirements');
+      setError('Password must include 6+ characters, one uppercase letter, and one number');
       return;
     }
 
@@ -50,13 +50,6 @@ const SetPasswordPage: React.FC = () => {
     }, 600);
   };
 
-  const strength = RULES.filter((rule) => rule.test(password)).length;
-  const strengthPercent = (strength / RULES.length) * 100;
-  const strengthColor =
-    strengthPercent === 100 ? 'var(--accent-emerald)' :
-    strengthPercent >= 66 ? 'var(--accent-amber, #f59e0b)' :
-    'var(--accent-red)';
-
   return (
     <AuthSplitShell
       mode="password"
@@ -65,41 +58,11 @@ const SetPasswordPage: React.FC = () => {
       switchDirection="back"
       switchLabel="Back to OTP"
     >
-      <div className="auth-form-card auth-form-card--password" key="password">
+      <div className="auth-form-card" key="password">
         <div className="auth-form-card__header">
           <span>Final step</span>
           <h2>Set Password</h2>
-          <p>Create a secure password for your verified Smart Campus account.</p>
-        </div>
-
-        {pendingSignup && (
-          <div className="auth-user-preview auth-user-preview--split">
-            <div className="auth-user-preview__avatar">{pendingSignup.name.charAt(0)}</div>
-            <div className="auth-user-preview__info">
-              <strong>{pendingSignup.name}</strong>
-              <span>{pendingSignup.department}</span>
-            </div>
-            <div className="auth-user-preview__verified">
-              <ShieldCheck size={14} /> Verified
-            </div>
-          </div>
-        )}
-
-        <div className="auth-steps-strip auth-steps-strip--split">
-          <div className="auth-step-dot auth-step-dot--done">
-            <span><Check size={12} /></span>
-            <small>Details</small>
-          </div>
-          <div className="auth-step-line auth-step-line--done" />
-          <div className="auth-step-dot auth-step-dot--done">
-            <span><Check size={12} /></span>
-            <small>OTP</small>
-          </div>
-          <div className="auth-step-line auth-step-line--done" />
-          <div className="auth-step-dot auth-step-dot--active">
-            <span>3</span>
-            <small>Password</small>
-          </div>
+          <p>Create a secure password for your Smart Campus account.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form auth-form--split">
@@ -123,28 +86,6 @@ const SetPasswordPage: React.FC = () => {
             </div>
           </div>
 
-          {password.length > 0 && (
-            <div className="pwd-strength pwd-strength--split">
-              <div className="pwd-strength__bar">
-                <div
-                  className="pwd-strength__fill"
-                  style={{ width: `${strengthPercent}%`, background: strengthColor }}
-                />
-              </div>
-              <ul className="pwd-strength__rules">
-                {RULES.map((rule) => {
-                  const pass = rule.test(password);
-                  return (
-                    <li key={rule.label} className={pass ? 'pwd-rule--pass' : 'pwd-rule--fail'}>
-                      {pass ? <Check size={12} /> : <X size={12} />}
-                      {rule.label}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
-
           <div className="auth-field">
             <label>Confirm Password</label>
             <div className="auth-input-wrap">
@@ -156,7 +97,7 @@ const SetPasswordPage: React.FC = () => {
                 onChange={(event) => setConfirmPassword(event.target.value)}
                 autoComplete="new-password"
               />
-              {confirmPassword.length > 0 && (
+              {showMatchState && (
                 <span className={`auth-match-icon ${passwordsMatch ? 'auth-match--yes' : 'auth-match--no'}`}>
                   {passwordsMatch ? <Check size={15} /> : <X size={15} />}
                 </span>
@@ -164,8 +105,20 @@ const SetPasswordPage: React.FC = () => {
             </div>
           </div>
 
+          <div className="auth-form-card__meta auth-form-card__meta--rules">
+            {RULES.map((rule) => {
+              const passed = rule.test(password);
+              return (
+                <span key={rule.label} className={passed ? 'auth-rule--pass' : 'auth-rule--muted'}>
+                  {passed ? <Check size={12} /> : <X size={12} />}
+                  {rule.label}
+                </span>
+              );
+            })}
+          </div>
+
           <button type="submit" className="auth-submit" disabled={loading || !allRulesPass || !passwordsMatch}>
-            {loading ? <span className="auth-spinner" /> : <><CheckCircle size={16} /> Create Account</>}
+            {loading ? <span className="auth-spinner" /> : <><ArrowRight size={16} /> Create Account</>}
           </button>
         </form>
 

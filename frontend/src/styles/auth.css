@@ -815,8 +815,31 @@
 }
 
 .auth-form-card__meta button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   color: #6c5dd3;
   font-weight: 900;
+}
+
+.auth-form-card__meta--rules {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.auth-form-card__meta--rules span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.auth-rule--pass {
+  color: #148f55;
+}
+
+.auth-rule--muted {
+  color: #8a90a0;
 }
 
 .auth-form-card__meta button:hover,
@@ -898,7 +921,7 @@
 
 .auth-form-card--otp,
 .auth-form-card--password {
-  width: min(430px, 100%);
+  width: min(390px, 100%);
 }
 
 .auth-user-preview--split {
