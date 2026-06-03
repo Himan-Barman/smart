@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
-  GraduationCap, Hash, Send, AtSign,
+  Hash, Send, AtSign,
 } from 'lucide-react';
+import AuthSplitShell from '../components/AuthSplitShell';
 
 const EMAIL_DOMAIN = '@technoindiaeducation.com';
 
@@ -35,35 +36,19 @@ const SignupPage: React.FC = () => {
   };
 
   return (
-    <div className="auth-page">
-      {/* Ambient glow effects */}
-      <div className="auth-page__bg">
-        <div className="auth-bg-glow auth-bg-glow--1" />
-        <div className="auth-bg-glow auth-bg-glow--2" />
-        <div className="auth-bg-glow auth-bg-glow--3" />
-      </div>
-
-      <div className="auth-card auth-card--fixed" key="signup">
-        {/* Tab Navigation */}
-        <div className="auth-tabs">
-          <button className="auth-tab" onClick={() => setAuthStep('login')}>Sign in</button>
-          <button className="auth-tab auth-tab--active">Sign up</button>
+    <AuthSplitShell
+      mode="signup"
+      onHome={() => setAuthStep('landing')}
+      onSwitch={() => setAuthStep('login')}
+    >
+      <div className="auth-form-card" key="signup">
+        <div className="auth-form-card__header">
+          <span>Admin-approved access</span>
+          <h2>Sign Up</h2>
+          <p>Use the university email and ID added by your administrator.</p>
         </div>
 
-        {/* Card Header */}
-        <div className="auth-card__header">
-          <div className="auth-card__logo">
-            <div className="auth-card__logo-icon">
-              <GraduationCap size={20} />
-            </div>
-            <span>Smart Campus</span>
-          </div>
-          <h2>Create an account</h2>
-          <p>Register with your university email &amp; ID</p>
-        </div>
-
-        {/* Form */}
-        <form onSubmit={handleSignup} className="auth-form">
+        <form onSubmit={handleSignup} className="auth-form auth-form--split">
           {error && <div className="auth-err">{error}</div>}
 
           <div className="auth-field">
@@ -103,14 +88,12 @@ const SignupPage: React.FC = () => {
           </button>
         </form>
 
-        {/* Footer */}
-        <div className="auth-card__footer">
+        <div className="auth-form-card__footer">
           <p>Have an account? <button onClick={() => setAuthStep('login')}>Sign In</button></p>
-          <p><button onClick={() => setAuthStep('landing')}>Back to website</button></p>
           <span className="auth-card__terms">By creating an account, you agree to our <a href="#">Terms &amp; Service</a></span>
         </div>
       </div>
-    </div>
+    </AuthSplitShell>
   );
 };
 
