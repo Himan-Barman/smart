@@ -101,13 +101,24 @@ noticeRouter.post(
       },
     });
 
-    const recipientIds = await findNoticeRecipientIds(notice);
-    await createUserNotifications(
-      recipientIds,
-      `New notice: ${notice.title}`,
-      notificationDescription(notice.content),
-      notificationTypeFor(payload.category),
-    );
+    try {
+      const recipientIds = await findNoticeRecipientIds(notice);
+      await createUserNotifications(
+        recipientIds,
+        `New notice: ${notice.title}`,
+        notificationDescription(notice.content),
+        notificationTypeFor(payload.category),
+      );
+    } catch (error) {
+      console.error('Notice notification fanout failed', {
+        noticeId: notice.id,
+        authorId: req.auth!.userId,
+        targetRole: notice.targetRole,
+        targetDepartment: notice.targetDepartment,
+        targetSemester: notice.targetSemester,
+        targetCourse: notice.targetCourse,
+      }, error);
+    }
 
     res.status(201).json(serializer.notice(notice));
   }),
