@@ -1,12 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
-  ShieldCheck, ArrowLeft, RefreshCw, ArrowRight,
+  ArrowRight,
+  Check,
+  RefreshCw,
+  ShieldCheck,
 } from 'lucide-react';
+import AuthSplitShell from '../components/AuthSplitShell';
+
+const OTP_LENGTH = 6;
 
 const OTPVerification: React.FC = () => {
   const { verifyOTPOnly, resendOTP, otpEmail, setAuthStep, pendingSignup } = useAuth();
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(60);
@@ -15,81 +21,97 @@ const OTPVerification: React.FC = () => {
 
   useEffect(() => {
     if (resendTimer > 0) {
-      const t = setTimeout(() => setResendTimer(p => p - 1), 1000);
-      return () => clearTimeout(t);
-    } else { setCanResend(true); }
+      const timer = setTimeout(() => setResendTimer((prev) => prev - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+
+    setCanResend(true);
+    return undefined;
   }, [resendTimer]);
 
-  const handleOTPChange = (i: number, val: string) => {
-    if (val.length > 1) {
-      const digits = val.replace(/\D/g, '').split('').slice(0, 6);
-      const n = [...otp];
-      digits.forEach((d, j) => { if (i + j < 6) n[i + j] = d; });
-      setOtp(n);
-      inputRefs.current[Math.min(i + digits.length, 5)]?.focus();
+  const handleOTPChange = (index: number, value: string) => {
+    if (value.length > 1) {
+      const digits = value.replace(/\D/g, '').split('').slice(0, OTP_LENGTH);
+      const next = [...otp];
+      digits.forEach((digit, offset) => {
+        if (index + offset < OTP_LENGTH) {
+          next[index + offset] = digit;
+        }
+      });
+      setOtp(next);
+      inputRefs.current[Math.min(index + digits.length, OTP_LENGTH - 1)]?.focus();
       return;
     }
-    if (!/^\d*$/.test(val)) return;
-    const n = [...otp]; n[i] = val; setOtp(n);
-    if (val && i < 5) inputRefs.current[i + 1]?.focus();
+
+    if (!/^\d*$/.test(value)) return;
+
+    const next = [...otp];
+    next[index] = value;
+    setOtp(next);
+
+    if (value && index < OTP_LENGTH - 1) {
+      inputRefs.current[index + 1]?.focus();
+    }
   };
 
-  const handleKey = (i: number, e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace' && !otp[i] && i > 0) inputRefs.current[i - 1]?.focus();
+  const handleKey = (index: number, event: React.KeyboardEvent) => {
+    if (event.key === 'Backspace' && !otp[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
   };
 
-  const handleResend = async () => { await resendOTP(); setResendTimer(60); setCanResend(false); setError(''); };
+  const handleResend = async () => {
+    await resendOTP();
+    setResendTimer(60);
+    setCanResend(false);
+    setError('');
+  };
 
-  const handleVerify = (e: React.FormEvent) => {
-    e.preventDefault(); setError('');
+  const handleVerify = (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+
     const code = otp.join('');
-    if (code.length !== 6) { setError('Enter the complete 6-digit code'); return; }
+    if (code.length !== OTP_LENGTH) {
+      setError('Enter the complete 6-digit code');
+      return;
+    }
+
     setLoading(true);
     setTimeout(async () => {
-      const r = await verifyOTPOnly(code);
-      if (!r.success) setError(r.message);
+      const result = await verifyOTPOnly(code);
+      if (!result.success) setError(result.message);
       setLoading(false);
     }, 600);
   };
 
-  const masked = otpEmail.replace(/(.{2})(.*)(@)/, (_, a, b, c) => a + '•'.repeat(Math.min(b.length, 4)) + c);
+  const masked = otpEmail
+    ? otpEmail.replace(/(.{2})(.*)(@)/, (_match, prefix, middle, suffix) => `${prefix}${'*'.repeat(Math.min(middle.length, 4))}${suffix}`)
+    : 'your university email';
 
   return (
-    <div className="auth-page">
-      {/* Ambient glow effects */}
-      <div className="auth-page__bg">
-        <div className="auth-bg-glow auth-bg-glow--1" />
-        <div className="auth-bg-glow auth-bg-glow--2" />
-        <div className="auth-bg-glow auth-bg-glow--3" />
-      </div>
-
-      <div className="auth-card auth-card--fixed" key="otp">
-        {/* Back button */}
-        <button className="auth-back-btn" onClick={() => setAuthStep('signup')}>
-          <ArrowLeft size={15} /> Back to signup
-        </button>
-
-        {/* Card Header */}
-        <div className="auth-card__header">
-          <div className="auth-card__logo">
-            <div className="auth-card__logo-icon auth-card__logo-icon--shield">
-              <ShieldCheck size={20} />
-            </div>
-            <span>Smart Campus</span>
-          </div>
-          <h2>Verify your email</h2>
-          <p>Code sent to <strong>{masked}</strong></p>
+    <AuthSplitShell
+      mode="otp"
+      onHome={() => setAuthStep('landing')}
+      onSwitch={() => setAuthStep('signup')}
+      switchDirection="back"
+      switchLabel="Back to Sign Up"
+    >
+      <div className="auth-form-card auth-form-card--otp" key="otp">
+        <div className="auth-form-card__header">
+          <span>Email verification</span>
+          <h2>Verify OTP</h2>
+          <p>Enter the 6-digit code sent to <strong>{masked}</strong>.</p>
         </div>
 
-        {/* User profile preview */}
         {pendingSignup && (
-          <div className="auth-user-preview">
+          <div className="auth-user-preview auth-user-preview--split">
             <div className="auth-user-preview__avatar">{pendingSignup.name.charAt(0)}</div>
             <div className="auth-user-preview__info">
               <strong>{pendingSignup.name}</strong>
               <span>
                 {pendingSignup.role === 'student'
-                  ? `${pendingSignup.course} · Sem ${pendingSignup.semester}`
+                  ? `${pendingSignup.course} - Sem ${pendingSignup.semester}`
                   : pendingSignup.subjects?.join(', ')}
               </span>
               <span>{pendingSignup.department}</span>
@@ -97,10 +119,9 @@ const OTPVerification: React.FC = () => {
           </div>
         )}
 
-        {/* Steps indicator */}
-        <div className="auth-steps-strip">
+        <div className="auth-steps-strip auth-steps-strip--split">
           <div className="auth-step-dot auth-step-dot--done">
-            <span>✓</span>
+            <span><Check size={12} /></span>
             <small>Details</small>
           </div>
           <div className="auth-step-line auth-step-line--done" />
@@ -115,28 +136,28 @@ const OTPVerification: React.FC = () => {
           </div>
         </div>
 
-        {/* Email notice */}
-        <div className="auth-otp-hint">
-          <span>📧</span>
-          <span>Check your email for the 6-digit verification code</span>
+        <div className="auth-otp-hint auth-otp-hint--split">
+          <ShieldCheck size={16} />
+          <span>Check your email inbox for the verification code.</span>
         </div>
 
-        <form onSubmit={handleVerify} className="auth-form">
+        <form onSubmit={handleVerify} className="auth-form auth-form--split">
           {error && <div className="auth-err">{error}</div>}
 
-          <div className="auth-otp-grid">
-            {otp.map((d, i) => (
+          <div className="auth-otp-grid auth-otp-grid--split">
+            {otp.map((digit, index) => (
               <input
-                key={i}
-                ref={el => { inputRefs.current[i] = el; }}
+                key={index}
+                ref={(element) => { inputRefs.current[index] = element; }}
                 type="text"
                 inputMode="numeric"
-                maxLength={6}
-                value={d}
-                onChange={e => handleOTPChange(i, e.target.value)}
-                onKeyDown={e => handleKey(i, e)}
+                maxLength={OTP_LENGTH}
+                value={digit}
+                onChange={(event) => handleOTPChange(index, event.target.value)}
+                onKeyDown={(event) => handleKey(index, event)}
                 className="auth-otp-cell"
-                autoFocus={i === 0}
+                autoFocus={index === 0}
+                aria-label={`OTP digit ${index + 1}`}
               />
             ))}
           </div>
@@ -156,7 +177,7 @@ const OTPVerification: React.FC = () => {
           </button>
         </form>
       </div>
-    </div>
+    </AuthSplitShell>
   );
 };
 

@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  ArrowLeft,
   ArrowRight,
   Bell,
   CalendarDays,
@@ -9,10 +10,12 @@ import {
 } from 'lucide-react';
 
 interface AuthSplitShellProps {
-  mode: 'login' | 'signup';
+  mode: 'login' | 'signup' | 'otp' | 'password';
   children: React.ReactNode;
   onHome: () => void;
-  onSwitch: () => void;
+  onSwitch?: () => void;
+  switchDirection?: 'back' | 'next';
+  switchLabel?: string;
 }
 
 const highlights = [
@@ -26,8 +29,10 @@ const AuthSplitShell: React.FC<AuthSplitShellProps> = ({
   children,
   onHome,
   onSwitch,
+  switchDirection = 'next',
+  switchLabel: switchLabelProp,
 }) => {
-  const switchLabel = mode === 'login' ? 'Sign Up' : 'Sign In';
+  const switchLabel = switchLabelProp ?? (mode === 'login' ? 'Sign Up' : 'Sign In');
 
   return (
     <div className={`auth-page auth-page--split auth-page--${mode}`}>
@@ -73,17 +78,19 @@ const AuthSplitShell: React.FC<AuthSplitShellProps> = ({
           </div>
         </aside>
 
-        <section className="auth-shell__panel" aria-label={`${switchLabel} panel`}>
+        <section className="auth-shell__panel" aria-label={`${mode} panel`}>
           <div className="auth-shell__topbar">
             <button className="auth-shell__brand" type="button" onClick={onHome}>
               <span><GraduationCap size={20} /></span>
               Smart Campus
             </button>
-            <button className="auth-shell__switch" type="button" onClick={onSwitch}>
-              <ShieldCheck size={15} />
-              {switchLabel}
-              <ArrowRight size={14} />
-            </button>
+            {onSwitch && (
+              <button className="auth-shell__switch" type="button" onClick={onSwitch}>
+                {switchDirection === 'back' ? <ArrowLeft size={14} /> : <ShieldCheck size={15} />}
+                {switchLabel}
+                {switchDirection === 'next' && <ArrowRight size={14} />}
+              </button>
+            )}
           </div>
 
           <div className="auth-shell__form-wrap">

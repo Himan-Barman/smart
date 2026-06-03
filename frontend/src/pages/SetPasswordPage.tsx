@@ -1,13 +1,20 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
-  Lock, Eye, EyeOff, CheckCircle, ArrowLeft, ShieldCheck, Check, X,
+  Check,
+  CheckCircle,
+  Eye,
+  EyeOff,
+  Lock,
+  ShieldCheck,
+  X,
 } from 'lucide-react';
+import AuthSplitShell from '../components/AuthSplitShell';
 
 const RULES = [
-  { test: (p: string) => p.length >= 6, label: 'At least 6 characters' },
-  { test: (p: string) => /[A-Z]/.test(p), label: 'One uppercase letter' },
-  { test: (p: string) => /[0-9]/.test(p), label: 'One number' },
+  { test: (password: string) => password.length >= 6, label: 'At least 6 characters' },
+  { test: (password: string) => /[A-Z]/.test(password), label: 'One uppercase letter' },
+  { test: (password: string) => /[0-9]/.test(password), label: 'One number' },
 ];
 
 const SetPasswordPage: React.FC = () => {
@@ -18,26 +25,32 @@ const SetPasswordPage: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const allRulesPass = RULES.every(r => r.test(password));
+  const allRulesPass = RULES.every((rule) => rule.test(password));
   const passwordsMatch = password.length > 0 && password === confirmPassword;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
     setError('');
 
-    if (!allRulesPass) { setError('Password does not meet requirements'); return; }
-    if (!passwordsMatch) { setError('Passwords do not match'); return; }
+    if (!allRulesPass) {
+      setError('Password does not meet requirements');
+      return;
+    }
+
+    if (!passwordsMatch) {
+      setError('Passwords do not match');
+      return;
+    }
 
     setLoading(true);
     setTimeout(async () => {
-      const r = await completeSignup(password);
-      if (!r.success) setError(r.message);
+      const result = await completeSignup(password);
+      if (!result.success) setError(result.message);
       setLoading(false);
     }, 600);
   };
 
-  // Password strength meter
-  const strength = RULES.filter(r => r.test(password)).length;
+  const strength = RULES.filter((rule) => rule.test(password)).length;
   const strengthPercent = (strength / RULES.length) * 100;
   const strengthColor =
     strengthPercent === 100 ? 'var(--accent-emerald)' :
@@ -45,35 +58,22 @@ const SetPasswordPage: React.FC = () => {
     'var(--accent-red)';
 
   return (
-    <div className="auth-page">
-      {/* Ambient glow effects */}
-      <div className="auth-page__bg">
-        <div className="auth-bg-glow auth-bg-glow--1" />
-        <div className="auth-bg-glow auth-bg-glow--2" />
-        <div className="auth-bg-glow auth-bg-glow--3" />
-      </div>
-
-      <div className="auth-card auth-card--fixed" key="password">
-        {/* Back button */}
-        <button className="auth-back-btn" onClick={() => setAuthStep('otp')}>
-          <ArrowLeft size={15} /> Back to OTP
-        </button>
-
-        {/* Card Header */}
-        <div className="auth-card__header">
-          <div className="auth-card__logo">
-            <div className="auth-card__logo-icon auth-card__logo-icon--lock">
-              <Lock size={20} />
-            </div>
-            <span>Smart Campus</span>
-          </div>
-          <h2>Create your password</h2>
-          <p>Secure your account with a strong password</p>
+    <AuthSplitShell
+      mode="password"
+      onHome={() => setAuthStep('landing')}
+      onSwitch={() => setAuthStep('otp')}
+      switchDirection="back"
+      switchLabel="Back to OTP"
+    >
+      <div className="auth-form-card auth-form-card--password" key="password">
+        <div className="auth-form-card__header">
+          <span>Final step</span>
+          <h2>Set Password</h2>
+          <p>Create a secure password for your verified Smart Campus account.</p>
         </div>
 
-        {/* User preview */}
         {pendingSignup && (
-          <div className="auth-user-preview">
+          <div className="auth-user-preview auth-user-preview--split">
             <div className="auth-user-preview__avatar">{pendingSignup.name.charAt(0)}</div>
             <div className="auth-user-preview__info">
               <strong>{pendingSignup.name}</strong>
@@ -85,15 +85,14 @@ const SetPasswordPage: React.FC = () => {
           </div>
         )}
 
-        {/* Steps indicator */}
-        <div className="auth-steps-strip">
+        <div className="auth-steps-strip auth-steps-strip--split">
           <div className="auth-step-dot auth-step-dot--done">
-            <span>✓</span>
+            <span><Check size={12} /></span>
             <small>Details</small>
           </div>
           <div className="auth-step-line auth-step-line--done" />
           <div className="auth-step-dot auth-step-dot--done">
-            <span>✓</span>
+            <span><Check size={12} /></span>
             <small>OTP</small>
           </div>
           <div className="auth-step-line auth-step-line--done" />
@@ -103,10 +102,9 @@ const SetPasswordPage: React.FC = () => {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="auth-form">
+        <form onSubmit={handleSubmit} className="auth-form auth-form--split">
           {error && <div className="auth-err">{error}</div>}
 
-          {/* Password field */}
           <div className="auth-field">
             <label>Password</label>
             <div className="auth-input-wrap">
@@ -115,7 +113,8 @@ const SetPasswordPage: React.FC = () => {
                 type={showPassword ? 'text' : 'password'}
                 placeholder="Create a strong password"
                 value={password}
-                onChange={e => setPassword(e.target.value)}
+                onChange={(event) => setPassword(event.target.value)}
+                autoComplete="new-password"
                 autoFocus
               />
               <button type="button" className="auth-eye" onClick={() => setShowPassword(!showPassword)}>
@@ -124,9 +123,8 @@ const SetPasswordPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Strength meter */}
           {password.length > 0 && (
-            <div className="pwd-strength">
+            <div className="pwd-strength pwd-strength--split">
               <div className="pwd-strength__bar">
                 <div
                   className="pwd-strength__fill"
@@ -134,10 +132,10 @@ const SetPasswordPage: React.FC = () => {
                 />
               </div>
               <ul className="pwd-strength__rules">
-                {RULES.map((rule, i) => {
+                {RULES.map((rule) => {
                   const pass = rule.test(password);
                   return (
-                    <li key={i} className={pass ? 'pwd-rule--pass' : 'pwd-rule--fail'}>
+                    <li key={rule.label} className={pass ? 'pwd-rule--pass' : 'pwd-rule--fail'}>
                       {pass ? <Check size={12} /> : <X size={12} />}
                       {rule.label}
                     </li>
@@ -147,7 +145,6 @@ const SetPasswordPage: React.FC = () => {
             </div>
           )}
 
-          {/* Confirm password field */}
           <div className="auth-field">
             <label>Confirm Password</label>
             <div className="auth-input-wrap">
@@ -156,7 +153,8 @@ const SetPasswordPage: React.FC = () => {
                 type={showPassword ? 'text' : 'password'}
                 placeholder="Re-enter your password"
                 value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                autoComplete="new-password"
               />
               {confirmPassword.length > 0 && (
                 <span className={`auth-match-icon ${passwordsMatch ? 'auth-match--yes' : 'auth-match--no'}`}>
@@ -171,12 +169,11 @@ const SetPasswordPage: React.FC = () => {
           </button>
         </form>
 
-        {/* Footer */}
-        <div className="auth-card__footer">
+        <div className="auth-form-card__footer">
           <span className="auth-card__terms">By creating an account, you agree to our <a href="#">Terms &amp; Service</a></span>
         </div>
       </div>
-    </div>
+    </AuthSplitShell>
   );
 };
 
